@@ -613,9 +613,11 @@
 
   // Wide layout: the opponent as one row per number, shaped like our player cards
   // (jersey | fouls and made shots | points). We only record their makes, so no attempts.
+  // Rows shrink to fit the column; past 8 numbers they switch to a slim single line so about
+  // 12 fit without scrolling.
   function oppRows(g, c) {
     var nums = (g.oppNums || []).slice().sort(function (a, b) { return R.byJersey({ num: a }, { num: b }); });
-    var h = ['<div class="opp-rows">'];
+    var h = ['<div class="opp-rows' + (nums.length > 8 ? ' dense' : '') + '">'];
     nums.forEach(function (n) {
       var l = c.opp[n] || C.emptyLine(), st = C.foulState(l.pf, c.rules, l.tf);
       var cls = 'card' + (ui.side === 'them' && ui.oppSel === n ? ' osel' : '') + (st === 'warn' ? ' warn' : '') + (st === 'out' ? ' out' : '');
@@ -685,7 +687,7 @@
       key('act', 'reb:o', 'OREB', 'Off. rebound', 'stat') + key('act', 'reb:d', 'DREB', 'Def. rebound', 'stat') +
       key('act', 'blk:', 'BLK', 'Block', 'stat') + key('act', 'to:', 'TO', 'Turnover', 'stat') +
       key('act', 'foul:p', 'FOUL', 'Personal foul', 'foul') + key('act', 'foul:t', 'TECH', 'Technical', 'foul') +
-      key('act', 'chg:', 'CHG', 'Took a charge', 'stat') + key('drawer', 'bench', 'SUB', 'Substitute', 'stat') +
+      key('act', 'chg:', 'CHG', 'Took a charge', 'stat') + key('subKey', '', 'SUB', 'Substitute', 'stat') +
       '</div>';
   }
 
@@ -728,17 +730,31 @@
       h += '</div>';
       return sheet('Period · now ' + C.periodLabel(q, r), h, '', true);
     }
-    if (d === 'bench') {
-      var ps = seasonPlayers(), count = g.onCourt.filter(Boolean).length;
-      h = '<p class="note" style="margin-top:0">Tap to move players on or off the court. Blue = on court.</p><div class="bench">';
-      ps.forEach(function (p) {
-        var on = g.onCourt.indexOf(p.id) >= 0, l = c.players[p.id] || C.emptyLine(), why = C.outReason(l, r);
-        h += '<button class="bp' + (on ? ' on' : '') + (why ? ' out' : '') + '" data-a="toggleCourt" data-x="' + p.id + '"><span class="num">' + esc(p.num) +
-          '</span><span>' + esc(shortName(p)) + '<small>' + l.pts + ' pts · ' + l.pf + ' PF' + (l.tf ? ' · ' + l.tf + 'T' : '') +
-          (why ? (why === 'ejected' ? ' · EJECTED' : ' · OUT') : '') + '</small></span></button>';
-      });
-      h += '</div>';
-      return sheet('Substitutions · ' + count + ' of 5 on court', h, '<button class="btn pri" data-a="closeDrawer">Done</button>');
+    if (d === 'bench' || d === 'replace') {
+      var court = g.onCourt.filter(Boolean), bench = seasonPlayers().filter(function (p) { return court.indexOf(p.id) < 0; });
+      var pend = ui.pendSub;
+      var benchBtn = function (p, action) {
+        var on = court.indexOf(p.id) >= 0, l = c.players[p.id] || C.emptyLine(), why = C.outReason(l, r);
+        return '<button class="bp' + (on ? ' on' : '') + (why ? ' out' : '') + (pend && pend.id === p.id ? ' pend' : '') + '" data-a="' + action + '" data-x="' + p.id + '"' +
+          (!on && why ? ' disabled' : '') + '><span class="num">' + esc(p.num) + '</span><span>' + esc(shortName(p)) + '<small>' + l.pts + ' pts · ' + l.pf + ' PF' +
+          (l.tf ? ' · ' + l.tf + 'T' : '') + (why ? (why === 'ejected' ? ' · EJECTED' : ' · OUT') : '') + '</small></span></button>';
+      };
+      if (d === 'replace') {
+        h = '<div class="bench">' + bench.map(function (p) { return benchBtn(p, 'replaceWith'); }).join('') + '</div>';
+        return sheet('Who’s coming in for ' + subName(ui.subOut) + '?', h,
+          '<button class="btn ghost" data-a="drawer" data-x="bench">Other subs</button><button class="btn" data-a="closeDrawer">Cancel</button>');
+      }
+      var hint;
+      if (pend && pend.on) hint = '<b>' + esc(subName(pend.id)) + ' going out.</b> Tap who’s coming in, or tap them again to just take them off.';
+      else if (pend) hint = '<b>' + esc(subName(pend.id)) + ' coming in.</b> Tap who’s going out.';
+      else if (court.length < 5) hint = 'Tap bench players to put them in (' + (5 - court.length) + ' open spot' + (court.length === 4 ? '' : 's') + ').';
+      else hint = 'Tap who’s coming in and who’s going out, in either order. Make as many swaps as you need.';
+      h = '<p class="sub-hint' + (pend ? ' on' : '') + '">' + hint + '</p>' +
+        '<h4 class="bench-hd">On court · ' + court.length + ' of 5</h4><div class="bench">' +
+        court.map(function (id) { return benchBtn(player(id) || R.findPlayer(g, meta, id) || { id: id, num: '?' }, 'subTap'); }).join('') + '</div>' +
+        '<h4 class="bench-hd">Bench</h4><div class="bench">' + bench.map(function (p) { return benchBtn(p, 'subTap'); }).join('') + '</div>' +
+        '<p class="note">Subs entered any time before the next point count exactly for plus/minus, so it’s fine to catch up during free throws.</p>';
+      return sheet('Substitutions', h, '<button class="btn pri" data-a="closeDrawer">Done</button>');
     }
     if (d === 'keypad') {
       var forChg = ui.kpFor === 'chg';
@@ -1095,22 +1111,75 @@
     else addEvent(g, 'us', id, 'sub', v);
   }
 
-  actions.toggleCourt = function (x) {
-    var g = gameById(route.id), i = g.onCourt.indexOf(x);
-    if (i >= 0) { g.onCourt.splice(i, 1); logSub(g, x, 'out'); }
-    else {
-      var c = C.computeGame(g), l = c.players[x];
-      if (l && C.outReason(l, c.rules)) { toast(C.outReason(l, c.rules) === 'ejected' ? 'That player has been ejected.' : 'That player has fouled out.'); return; }
-      if (g.onCourt.length >= 5) { toast('5 players are on court. Take one off first.'); return; }
-      g.onCourt.push(x);
-      logSub(g, x, 'in');
-      if (g.appeared.indexOf(x) < 0) g.appeared.push(x);
-      // Keep the game's roster snapshot complete for players added mid-season.
-      var p = player(x);
-      if (p && !find(g.roster, x)) g.roster.push({ id: p.id, num: p.num, first: p.first, last: p.last });
-    }
-    if (ui.sel && g.onCourt.indexOf(ui.sel) < 0) ui.sel = null;
+  // Returns why a player can't come in ('' if they can), with a toast saying so.
+  function blockedFromCourt(g, id) {
+    var c = C.computeGame(g), l = c.players[id], why = l ? C.outReason(l, c.rules) : '';
+    if (why) toast(why === 'ejected' ? 'That player has been ejected.' : 'That player has fouled out.');
+    return why;
+  }
+
+  function cameIn(g, id) {
+    if (g.appeared.indexOf(id) < 0) g.appeared.push(id);
+    // Keep the game's roster snapshot complete for players added mid-season.
+    var p = player(id);
+    if (p && !find(g.roster, id)) g.roster.push({ id: p.id, num: p.num, first: p.first, last: p.last });
+  }
+
+  function putIn(g, id) { g.onCourt.push(id); logSub(g, id, 'in'); cameIn(g, id); saveGame(g); }
+
+  function takeOff(g, id) {
+    g.onCourt.splice(g.onCourt.indexOf(id), 1);
+    logSub(g, id, 'out');
+    if (ui.sel === id) ui.sel = null;
     saveGame(g);
+  }
+
+  // The player coming in takes the outgoing player's card position, so the others don't move.
+  function swapPlayers(g, outId, inId) {
+    g.onCourt[g.onCourt.indexOf(outId)] = inId;
+    logSub(g, outId, 'out');
+    logSub(g, inId, 'in');
+    cameIn(g, inId);
+    if (ui.sel === outId) ui.sel = null;
+    saveGame(g);
+  }
+
+  function subName(id) { var p = player(id) || {}; return '#' + p.num + ' ' + shortName(p); }
+
+  // Subs sheet: tap who's coming in and who's going out, in either order; the pair is swapped.
+  // With an open spot, a bench tap puts the player straight in. Tapping a picked on-court player
+  // again takes them off without a replacement.
+  actions.subTap = function (x) {
+    var g = gameById(route.id), on = g.onCourt.indexOf(x) >= 0, pend = ui.pendSub;
+    if (!on && blockedFromCourt(g, x)) return;
+    if (pend && pend.id === x) {
+      ui.pendSub = null;
+      if (on) takeOff(g, x);
+    } else if (pend && pend.on !== on) {
+      swapPlayers(g, on ? x : pend.id, on ? pend.id : x);
+      ui.pendSub = null;
+    } else if (!on && g.onCourt.length < 5) {
+      putIn(g, x);
+    } else {
+      ui.pendSub = { id: x, on: on };
+    }
+    render();
+  };
+
+  // SUB key on the pad: with one of our players picked, go straight to "who replaces them?".
+  actions.subKey = function () {
+    var g = gameById(route.id);
+    ui.pendSub = null;
+    if (ui.sel && g.onCourt.indexOf(ui.sel) >= 0) { ui.subOut = ui.sel; ui.drawer = 'replace'; }
+    else ui.drawer = 'bench';
+    render();
+  };
+  actions.replaceWith = function (x) {
+    var g = gameById(route.id);
+    if (blockedFromCourt(g, x)) return;
+    swapPlayers(g, ui.subOut, x);
+    toast(subName(x) + ' in for ' + subName(ui.subOut));
+    ui.drawer = null; ui.subOut = null;
     render();
   };
 
@@ -1118,11 +1187,11 @@
     // 'keypad-chg' is the number keypad opened from the charge sheet: the number gets the offensive foul.
     ui.kpFor = x === 'keypad-chg' ? 'chg' : null;
     if (x === 'keypad-chg') x = 'keypad';
-    ui.drawer = x; ui.prompt = null; ui.armed = null;
+    ui.drawer = x; ui.prompt = null; ui.armed = null; ui.pendSub = null;
     if (x === 'keypad') ui.kp = '';
     render();
   };
-  actions.closeDrawer = function () { ui.drawer = null; ui.armed = null; ui.kpFor = null; render(); };
+  actions.closeDrawer = function () { ui.drawer = null; ui.armed = null; ui.kpFor = null; ui.pendSub = null; ui.subOut = null; render(); };
   actions.chgFoul = function (x) {
     var g = gameById(route.id);
     ui.drawer = null;
