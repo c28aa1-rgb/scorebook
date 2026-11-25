@@ -1,7 +1,7 @@
 /*
  * Scorebook Ledger theme.
  * The live screen is a fixed canvas; app.js scales the root font size to fit the window.
- * Wide (.lv.wide, 80 x 50 rem): Fire HD 10 at 1280x800 CSS px — cards | pad | plays panel.
+ * Wide (.lv.wide, 80 x 50 rem): Fire HD 10 at 1280x800 CSS px — our cards | their numbers | pad.
  * Compact (60 x 37.5 rem): Fire HD 8 at 960x600 and smaller iPads — cards | pad, footer below.
  * Keep it cheap: no blur, no transitions, no large shadows.
  */
@@ -130,6 +130,7 @@ button:disabled { cursor: default; opacity: 0.35; }
   font-family: var(--f-num); font-weight: 700; font-size: 0.72rem; letter-spacing: 0.1em;
   padding: 0.12rem 0.4rem; border-radius: 0.2rem; background: #fff; color: var(--ink);
 }
+.bonus.next { background: transparent; color: #fff; box-shadow: inset 0 0 0 1.5px #9FB2B0; }
 .tm-to {
   display: flex; align-items: center; gap: 0.35rem; min-height: 2.75rem; padding: 0 0.55rem;
   margin: -0.6rem -0.55rem; border-radius: 0.3rem; color: #B9C8C6; font-size: 0.72rem;
@@ -249,46 +250,23 @@ button:disabled { cursor: default; opacity: 0.35; }
 
 /* ---------- Wide live layout (Fire HD 10) ---------- */
 .lv.wide .lv-top { height: 5rem; }
-.lv.wide .lv-left { width: 27rem; }
-.lv.wide .card .jr { width: 4.6rem; font-size: 2.4rem; }
-.lv.wide .card .nm b { font-size: 1.15rem; }
-.lv.wide .card .pts { font-size: 2.3rem; }
-.lv.wide .chip { height: 5.2rem; }
-.lv-subs { flex: none; min-height: 3rem; }
-
-.plays { width: 19rem; flex: none; display: flex; flex-direction: column; gap: 0.45rem; min-height: 0; }
-.plays-hd {
-  flex: none; display: flex; align-items: baseline; justify-content: space-between; padding: 0.35rem 0.15rem 0.3rem;
-  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ledger);
-  border-bottom: 2px solid var(--ledger);
+/* Both teams side by side: our five cards, then the opponent's numbers; the pad follows the pick. */
+.lv.wide .lv-left { width: 44rem; flex-direction: row; gap: 0.45rem; }
+.col { display: flex; flex-direction: column; gap: 0.4rem; min-height: 0; }
+.col.us { width: 26rem; flex: none; }
+.col.them { flex: 1; min-width: 0; }
+.col-hd {
+  flex: none; height: 2.5rem; padding: 0 0.6rem; border: 2px solid var(--rule); border-radius: 0.375rem;
+  font-weight: 700; font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink2);
 }
-.plays-hd small { font-size: 0.85rem; letter-spacing: 0; color: var(--ink2); }
-.plays-list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; list-style: none; margin: 0; padding: 0; }
-.plays-list li {
-  display: flex; align-items: center; gap: 0.45rem; min-height: 2.75rem; padding: 0.15rem 0 0.15rem 0.45rem;
-  border-bottom: 1px solid var(--rule); border-left: 3px solid transparent; font-size: 0.82rem;
-}
-.plays-list li:first-child { background: var(--card); }
-.plays-list .q { flex: none; width: 1.9rem; font-size: 0.8rem; font-weight: 700; color: var(--ledger); }
-.plays-list .d { flex: 1; min-width: 0; line-height: 1.2; }
-.plays-list .sc { flex: none; font-size: 0.85rem; color: var(--ink2); }
-/* Scoring plays carry the ledger's weight; our baskets get the team color. */
-.plays-list .pts .d, .plays-list .pts .sc { font-weight: 700; color: var(--ink); }
-.plays-list .pts.us { border-left-color: var(--accent); }
-.plays-list .pts.them { border-left-color: var(--ink); }
-.plays-list .foul .d { color: var(--out); }
-.plays-list .dim { min-height: 2.3rem; font-size: 0.76rem; color: var(--ink2); }
-.plays-list .x { flex: none; width: 3rem; height: 2.5rem; border-radius: 0.3rem; font-size: 1.2rem; color: var(--ink2); text-align: center; }
-.plays-list .x:active { background: var(--out-soft); }
-.plays-list .x.armed { width: auto; padding: 0 0.65rem; background: var(--out); color: #fff; font-size: 0.75rem; font-weight: 700; }
-.plays-list .none { border: 0; padding: 1rem 0.3rem; color: var(--ink2); }
-.plays-ft { flex: none; display: flex; gap: 0.45rem; }
-.plays-ft .btn { flex: 1; min-height: 3rem; padding: 0 0.5rem; }
-/* Timeout countdown at the top of the panel: bigger digits, label on its own line. */
-.plays .to-clock { flex: none; height: auto; flex-wrap: wrap; gap: 0.1rem 0.6rem; padding: 0.55rem 0.8rem 0.6rem; }
-.plays .to-clock .who { flex-basis: 100%; }
-.plays .to-clock b { font-size: 2.8rem; text-align: left; }
-.plays .to-clock small { margin-left: auto; align-self: flex-end; padding-bottom: 0.3rem; }
+.col.on .col-hd { background: var(--ink); border-color: var(--ink); color: #fff; }
+.lv.wide .card .jr { width: 4.4rem; font-size: 2.3rem; }
+.lv.wide .card .nm b { font-size: 1.1rem; }
+.lv.wide .card .pts { font-size: 2.2rem; }
+.lv.wide .chip { width: calc((100% - 0.4rem) / 2); height: 4.7rem; }
+.lv.wide .lv-bot { height: 3.8rem; }
+.lv.wide .lv-bot .btn, .lv.wide .to-clock { min-height: 3.2rem; height: 3.2rem; }
 
 /* Drawers (modal sheets) */
 .scrim { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(16, 24, 32, 0.55); z-index: 10; display: flex; align-items: center; justify-content: center; }

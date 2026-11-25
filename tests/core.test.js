@@ -102,6 +102,10 @@ test('bonus: 5th team foul in a quarter sends opponent to the line', function ()
   evs.push(ev(1, 'us', 'b', 'foul', 'p'));
   c = SB.computeGame(game(evs, 1));
   assert.strictEqual(c.shooting.them, true, 'after 4 fouls the next one is the 5th = shooting');
+  assert.strictEqual(c.inBonus.them, false, '4 fouls is one away from the bonus, not in it');
+  evs.push(ev(1, 'us', 'c', 'foul', 'p'));
+  c = SB.computeGame(game(evs, 1));
+  assert.strictEqual(c.inBonus.them, true, 'the 5th foul puts them in the bonus');
 });
 
 test('team fouls reset each quarter', function () {

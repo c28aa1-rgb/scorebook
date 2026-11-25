@@ -4,9 +4,10 @@ A digital basketball scorebook for one team, built for the Fire HD 10 (2021, 192
 Chrome, landscape). Also works on the 2017 Fire HD 8 and on iPads. Plain HTML/CSS/JS, no build step, works
 offline. All data lives on the tablet.
 
-On wide screens (1100 CSS px and up, e.g. the Fire HD 10) the live screen has three columns: player cards,
-the stat pad, and a **Plays** panel with recent plays, the running score and the timeout countdown (tap ×
-twice to remove a play). Narrower screens use the compact two-column layout with a bottom bar.
+On wide screens (1100 CSS px and up, e.g. the Fire HD 10) the live screen shows both teams at once: your
+five player cards, the opponent's jersey numbers beside them, then the stat pad. Tapping a player on either
+side switches the pad to that team (tap a team's name to switch without picking anyone). Narrower screens
+use tabs to switch between teams.
 
 The screen stays on whenever the app is open (Settings → Screen can limit it to games). It needs the https
 address, and on iPad iPadOS 16.4+ (18.4+ when opened from the home screen); Settings shows whether it's
@@ -19,8 +20,8 @@ working on that device.
   selected for the second shot.
 - **Opponent:** switch to their tab. Tap a jersey number (or **+ Number** to add one), then +1/+2/+3 or
   FOUL. With no number picked, it's logged to their team.
-- **Top bar:** score, team fouls this quarter (slashed boxes), **BONUS** when that team shoots on the next
-  foul, and timeouts left (tall pips = full, short pips = 30-second). Tap the timeouts to record one; a
+- **Top bar:** score, team fouls this quarter (slashed boxes), and on the team that shoots: **1 TO BONUS**
+  when the other side's next foul is the bonus foul, **BONUS** once it's been reached; and timeouts left (tall pips = full, short pips = 30-second). Tap the timeouts to record one; a
   countdown (1:00 or 0:30) runs in the bottom bar and turns red at zero. Tap it to end early.
 - **Period button:** end the quarter, go to OT, go back to fix a mistake, or end the game.
 - **Undo** removes the last entry. **Play log** lets you remove any earlier entry.

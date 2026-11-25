@@ -82,7 +82,7 @@
   }
 
   // The live screen is a fixed canvas scaled to fill the window by setting the root font size:
-  // 80 x 50 rem with a plays panel on wide screens (Fire HD 10: 1280 x 800), else the
+  // 80 x 50 rem with both teams shown on wide screens (Fire HD 10: 1280 x 800), else the
   // compact 60 x 37.5 rem layout (Fire HD 8: 960 x 600, smaller iPads).
   var WIDE_MIN = 1100;
   function fitScale() {
@@ -511,20 +511,22 @@
     h.push('</header>');
 
     h.push('<main class="lv-main"><section class="lv-left">');
-    h.push('<div class="tabs"><button data-a="side" data-x="us" class="' + (ui.side === 'us' ? 'on' : '') + '">' + esc(meta.team.name) +
-      '</button><button data-a="side" data-x="them" class="' + (ui.side === 'them' ? 'on' : '') + '">' + esc(g.opponent) + '</button></div>');
-    h.push(ui.side === 'us' ? ourCards(g, c) : oppChips(g, c));
-    if (wide) h.push('<button class="btn lv-subs" data-a="drawer" data-x="bench">Subs</button>');
+    if (wide) {
+      // Both teams at once: tapping a player on either side switches the pad to that team.
+      // The header buttons switch it without picking anyone (e.g. a team foul with no number).
+      h.push('<div class="col us' + (ui.side === 'us' ? ' on' : '') + '"><button class="col-hd" data-a="side" data-x="us">' + esc(meta.team.name) +
+        '</button>' + ourCards(g, c) + '</div>');
+      h.push('<div class="col them' + (ui.side === 'them' ? ' on' : '') + '"><button class="col-hd" data-a="side" data-x="them">' + esc(g.opponent) +
+        '</button>' + oppChips(g, c) + '</div>');
+    } else {
+      h.push('<div class="tabs"><button data-a="side" data-x="us" class="' + (ui.side === 'us' ? 'on' : '') + '">' + esc(meta.team.name) +
+        '</button><button data-a="side" data-x="them" class="' + (ui.side === 'them' ? 'on' : '') + '">' + esc(g.opponent) + '</button></div>');
+      h.push(ui.side === 'us' ? ourCards(g, c) : oppChips(g, c));
+    }
     h.push('</section><section class="lv-pad">');
     h.push(padHead(g, c));
     h.push(ui.side === 'us' ? ourPad() : oppPad());
-    h.push('</section>');
-    if (wide) {
-      h.push(playsPanel(g, c) + '</main></div>');
-      if (ui.drawer) h.push(drawer(g, c));
-      return h.join('');
-    }
-    h.push('</main>');
+    h.push('</section></main>');
 
     var last = g.events[g.events.length - 1];
     h.push('<footer class="lv-bot"><button class="btn" data-a="drawer" data-x="bench">Subs</button>' +
@@ -536,26 +538,6 @@
     if (ui.drawer) h.push(drawer(g, c));
     return h.join('');
   };
-
-  // Wide layout only: recent plays beside the pad, newest first, with the running score.
-  // Each play can be removed with two taps. The timeout countdown sits on top.
-  function playsPanel(g, c) {
-    var h = ['<aside class="plays">'], tot = { us: 0, them: 0 }, score = {};
-    if (ui.timer && ui.timer.game === g.id) h.push(timerChip(g));
-    g.events.forEach(function (e) { if (e.t === 'make') tot[e.tm] += e.v; score[e.s] = tot.us + '–' + tot.them; });
-    h.push('<div class="plays-hd"><span>Plays</span><small class="num">' + g.events.length + '</small></div><ol class="plays-list">');
-    if (!g.events.length) h.push('<li class="none">Plays show here as you enter them.</li>');
-    g.events.slice(-60).reverse().forEach(function (e) {
-      var armed = ui.armed === 'ev' + e.s;
-      var cls = e.t === 'make' ? 'pts ' + e.tm : e.t === 'sub' ? 'dim' : e.t === 'foul' ? 'foul' : '';
-      h.push('<li class="' + cls + '"><span class="q num">' + C.periodLabel(e.q, c.rules) + '</span><span class="d">' + esc(describe(e, g)) +
-        '</span><span class="sc num">' + score[e.s] + '</span><button class="x' + (armed ? ' armed' : '') + '" data-a="rmEvent" data-x="' + e.s + '">' +
-        (armed ? 'Remove' : '×') + '</button></li>');
-    });
-    h.push('</ol><div class="plays-ft"><button class="btn" data-a="drawer" data-x="log">Full log</button>' +
-      '<button class="btn" data-a="go" data-x="#report/' + g.id + '">Box score</button></div></aside>');
-    return h.join('');
-  }
 
   function teamBlock(tm, name, c) {
     var fouls = c.currentFouls[tm], r = c.rules, left = c.timeoutsLeft[tm], h = [];
@@ -569,7 +551,10 @@
     pips += '</span>';
     h.push('<div class="tm ' + tm + '"><span class="tm-score">' + c.score[tm] + '</span><div class="tm-info">');
     h.push('<span class="tm-name">' + esc(name) + '</span>');
-    h.push('<span class="tm-row"><span>FOULS ' + fouls + '</span>' + boxes + (c.shooting[tm] ? '<span class="bonus">BONUS</span>' : '') + '</span>');
+    // Shown on the team that shoots: BONUS once the other side reaches the bonus foul,
+    // "1 TO BONUS" when their next foul gets there.
+    var bonus = c.inBonus[tm] ? '<span class="bonus">BONUS</span>' : c.shooting[tm] ? '<span class="bonus next">1 TO BONUS</span>' : '';
+    h.push('<span class="tm-row"><span>FOULS ' + fouls + '</span>' + boxes + bonus + '</span>');
     h.push('<button class="tm-to" data-a="drawer" data-x="to-' + tm + '">TO ' + pips + '<span>' + left.full + '+' + left.short + '</span></button>');
     h.push('</div></div>');
     return h.join('');
@@ -626,7 +611,7 @@
         foulBoxes(l.pf, c.rules, l.tf) + '</span></button>');
     });
     var tl = c.opp[''] || C.emptyLine();
-    h.push('<button class="chip team' + (ui.oppSel === null ? ' sel' : '') + '" data-a="oppPick" data-x=""><span class="num">TEAM</span><small>' + tl.pts + ' pts</small><small>no number</small></button>');
+    h.push('<button class="chip team' + (ui.oppSel === null && ui.side === 'them' ? ' sel' : '') + '" data-a="oppPick" data-x=""><span class="num">TEAM</span><small>' + tl.pts + ' pts</small><small>no number</small></button>');
     h.push('<button class="chip add" data-a="drawer" data-x="keypad">+ Number</button>');
     h.push('</div>');
     return h.join('');
@@ -870,8 +855,9 @@
   actions.side = function (x) { ui.side = x; ui.prompt = null; render(); };
   // Tapping a player always selects (never toggles off): after a free throw the shooter
   // stays selected, and a reflexive second tap must not clear it.
-  actions.pick = function (x) { ui.sel = x; ui.msg = null; render(); };
-  actions.oppPick = function (x) { ui.oppSel = x === '' ? null : x; render(); };
+  // Picking a player also points the pad at their team (both teams show at once on wide screens).
+  actions.pick = function (x) { ui.sel = x; ui.msg = null; ui.side = 'us'; render(); };
+  actions.oppPick = function (x) { ui.oppSel = x === '' ? null : x; ui.side = 'them'; render(); };
 
   // Live: our team stat
   actions.act = function (x) {

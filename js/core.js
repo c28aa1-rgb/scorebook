@@ -154,6 +154,11 @@
       us: r.currentFouls.them + 1 >= rules.bonusAt,
       them: r.currentFouls.us + 1 >= rules.bonusAt
     };
+    // inBonus.us = the opponent has reached the bonus foul, so every further foul by them is shot.
+    r.inBonus = {
+      us: r.currentFouls.them >= rules.bonusAt,
+      them: r.currentFouls.us >= rules.bonusAt
+    };
     r.pm = plusMinus(game);
     return r;
   }
