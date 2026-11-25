@@ -517,7 +517,7 @@
       h.push('<div class="col us' + (ui.side === 'us' ? ' on' : '') + '"><button class="col-hd" data-a="side" data-x="us">' + esc(meta.team.name) +
         '</button>' + ourCards(g, c) + '</div>');
       h.push('<div class="col them' + (ui.side === 'them' ? ' on' : '') + '"><button class="col-hd" data-a="side" data-x="them">' + esc(g.opponent) +
-        '</button>' + oppChips(g, c) + '</div>');
+        '</button>' + oppRows(g, c) + '</div>');
     } else {
       h.push('<div class="tabs"><button data-a="side" data-x="us" class="' + (ui.side === 'us' ? 'on' : '') + '">' + esc(meta.team.name) +
         '</button><button data-a="side" data-x="them" class="' + (ui.side === 'them' ? 'on' : '') + '">' + esc(g.opponent) + '</button></div>');
@@ -597,6 +597,27 @@
         '<span class="' + (st === 'warn' ? 'warn' : st === 'out' ? 'out' : '') + '">' + outTag(l, c.rules) +
         foulBoxes(l.pf, c.rules, l.tf) + '</span><span class="pts">' + l.pts + '<small>PTS</small></span></button>');
     }
+    h.push('</div>');
+    return h.join('');
+  }
+
+  // Wide layout: the opponent as one row per number, shaped like our player cards
+  // (jersey | fouls and made shots | points). We only record their makes, so no attempts.
+  function oppRows(g, c) {
+    var nums = (g.oppNums || []).slice().sort(function (a, b) { return R.byJersey({ num: a }, { num: b }); });
+    var h = ['<div class="opp-rows">'];
+    nums.forEach(function (n) {
+      var l = c.opp[n] || C.emptyLine(), st = C.foulState(l.pf, c.rules, l.tf);
+      var cls = 'card' + (ui.side === 'them' && ui.oppSel === n ? ' osel' : '') + (st === 'warn' ? ' warn' : '') + (st === 'out' ? ' out' : '');
+      h.push('<button class="' + cls + '" data-a="oppPick" data-x="' + esc(n) + '"><span class="jr">' + esc(n) + '</span>' +
+        '<span class="nm"><span class="' + (st === 'warn' ? 'warn' : st === 'out' ? 'out' : '') + '">' + outTag(l, c.rules) +
+        foulBoxes(l.pf, c.rules, l.tf) + '</span><small>FG ' + l.fgm + ' · 3P ' + l.tpm + ' · FT ' + l.ftm + '</small></span>' +
+        '<span class="pts">' + l.pts + '<small>PTS</small></span></button>');
+    });
+    var tl = c.opp[''] || C.emptyLine();
+    h.push('<button class="card fixed' + (ui.side === 'them' && ui.oppSel === null ? ' osel' : '') + '" data-a="oppPick" data-x="">' +
+      '<span class="jr">–</span><span class="nm"><b>Team</b><small>no number</small></span><span class="pts">' + tl.pts + '<small>PTS</small></span></button>');
+    h.push('<button class="card empty fixed" data-a="drawer" data-x="keypad">+ Add a number</button>');
     h.push('</div>');
     return h.join('');
   }

@@ -251,7 +251,7 @@ button:disabled { cursor: default; opacity: 0.35; }
 /* ---------- Wide live layout (Fire HD 10) ---------- */
 .lv.wide .lv-top { height: 5rem; }
 /* Both teams side by side: our five cards, then the opponent's numbers; the pad follows the pick. */
-.lv.wide .lv-left { width: 44rem; flex-direction: row; gap: 0.45rem; }
+.lv.wide .lv-left { width: 45.5rem; flex-direction: row; gap: 0.45rem; }
 .col { display: flex; flex-direction: column; gap: 0.4rem; min-height: 0; }
 .col.us { width: 26rem; flex: none; }
 .col.them { flex: 1; min-width: 0; }
@@ -264,7 +264,16 @@ button:disabled { cursor: default; opacity: 0.35; }
 .lv.wide .card .jr { width: 4.4rem; font-size: 2.3rem; }
 .lv.wide .card .nm b { font-size: 1.1rem; }
 .lv.wide .card .pts { font-size: 2.2rem; }
-.lv.wide .chip { width: calc((100% - 0.4rem) / 2); height: 4.7rem; }
+/* Opponent rows: grow to match our cards when there are few numbers, scroll when there are many. */
+.opp-rows { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.3rem; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.opp-rows .card { flex: 1 0 4.6rem; max-height: 7.8rem; }
+.opp-rows .card.fixed { flex: 0 0 3.4rem; }
+.opp-rows .card.fixed .jr { font-size: 1.4rem; color: var(--ink2); }
+.opp-rows .card.empty { font-size: 0.9rem; }
+.opp-rows .nm .boxes .box { width: 0.9rem; height: 0.9rem; }
+/* Picked opponent: ink rather than our team color, so it's clear which side the pad is on. */
+.card.osel { border-color: var(--ink); background: #E8ECEE; }
+.card.osel .jr { background: var(--ink); color: #fff; border-color: var(--ink); }
 .lv.wide .lv-bot { height: 3.8rem; }
 .lv.wide .lv-bot .btn, .lv.wide .to-clock { min-height: 3.2rem; height: 3.2rem; }
 
