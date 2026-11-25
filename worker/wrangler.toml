@@ -1,0 +1,13 @@
+name = "scorebook-reports"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+[[r2_buckets]]
+binding = "REPORTS"
+bucket_name = "scorebook-reports"
+
+[vars]
+# Set to the address the app is served from (e.g. https://scorebook.pages.dev) to restrict publishing to it.
+ALLOWED_ORIGIN = ""
+
+# The publish key is a secret: wrangler secret put PUBLISH_KEY
