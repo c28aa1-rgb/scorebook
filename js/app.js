@@ -552,10 +552,23 @@
       return sheet('Substitutions · ' + count + ' of 5 on court', h, '<button class="btn pri" data-a="closeDrawer">Done</button>');
     }
     if (d === 'keypad') {
+      var forChg = ui.kpFor === 'chg';
       h = '<div class="kp-show num">' + (ui.kp ? esc(ui.kp) : '<span style="color:var(--rule)">#</span>') + '</div><div class="keypad">';
       ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '00'].forEach(function (k) { h += '<button data-a="kp" data-x="' + k + '">' + k + '</button>'; });
       h += '<button data-a="kp" data-x="del">⌫</button></div>';
-      return sheet(g.opponent + ' player number', h, '<button class="btn pri" data-a="kpAdd"' + (ui.kp ? '' : ' disabled') + '>Add #' + esc(ui.kp) + '</button>', true);
+      return sheet(forChg ? 'Offensive foul on ' + g.opponent + ' #' : g.opponent + ' player number', h,
+        '<button class="btn pri" data-a="kpAdd"' + (ui.kp ? '' : ' disabled') + '>' + (forChg ? 'Foul on #' : 'Add #') + esc(ui.kp) + '</button>', true);
+    }
+    if (d === 'chgFoul') {
+      var nums = (g.oppNums || []).slice().sort(function (a, b) { return R.byJersey({ num: a }, { num: b }); });
+      h = '<p class="note" style="margin-top:0">Who was called for the offensive foul?</p><div class="keypad chg-pick">';
+      nums.forEach(function (n) {
+        var l = c.opp[n] || C.emptyLine();
+        h += '<button data-a="chgFoul" data-x="' + esc(n) + '">' + esc(n) + '<small>' + l.pf + ' PF</small></button>';
+      });
+      h += '<button class="ghost" data-a="chgFoul" data-x="">No #<small>team</small></button>' +
+        '<button class="ghost" data-a="drawer" data-x="keypad-chg">+ #<small>new number</small></button></div>';
+      return sheet('Charge taken · foul on ' + g.opponent, h, '<button class="btn ghost" data-a="closeDrawer">Skip — don’t record a foul</button>', true);
     }
     if (d === 'log') {
       var evs = g.events.slice().reverse(), tot = { us: 0, them: 0 }, running = {};
@@ -696,6 +709,7 @@
     ui.flash = ui.sel;
     if (t === 'make' && v > 1) ui.prompt = { k: 'ast', p: ui.sel };
     else if (t === 'miss') ui.prompt = { k: 'reb', p: ui.sel };
+    else if (t === 'chg') ui.drawer = 'chgFoul';
     if (t === 'foul') {
       var after = C.computeGame(g), p = player(ui.sel);
       var notes = [foulNotice('#' + p.num + ' ' + shortName(p), after.players[ui.sel], after.rules, v === 't', true)];
@@ -722,15 +736,22 @@
   actions.promptSkip = function () { ui.prompt = null; render(); };
 
   // Live: opponent
+  // Records a foul on an opponent ('' = no number) and shows any warning it causes.
+  function oppFoul(g, num, v, confirm) {
+    addEvent(g, 'them', num, 'foul', v);
+    var c = C.computeGame(g);
+    var note = num ? foulNotice(g.opponent + ' #' + num, c.opp[num], c.rules, v === 't') : '';
+    if (confirm) note = confirm + (note ? ' ' + note : '');
+    if (note) toast(note, num && C.outReason(c.opp[num], c.rules) ? 5000 : 0);
+  }
+
+  function chgConfirm(g, num) { return 'Offensive foul on ' + g.opponent + (num ? ' #' + num : ' (no number)') + '.'; }
+
   actions.oppAct = function (x) {
     var g = gameById(route.id), parts = x.split(':'), t = parts[0], v = parts[1];
     if (t === 'make') v = parseInt(v, 10);
-    addEvent(g, 'them', ui.oppSel || '', t, v);
-    if (t === 'foul') {
-      var c = C.computeGame(g);
-      var note = ui.oppSel ? foulNotice(g.opponent + ' #' + ui.oppSel, c.opp[ui.oppSel], c.rules, v === 't') : '';
-      if (note) toast(note, C.outReason(c.opp[ui.oppSel], c.rules) ? 5000 : 0);
-    }
+    if (t === 'foul') oppFoul(g, ui.oppSel || '', v);
+    else addEvent(g, 'them', ui.oppSel || '', t, v);
     if (!(t === 'make' && v === 1)) ui.oppSel = null;
     render();
   };
@@ -746,6 +767,13 @@
     if (!ui.kp) return;
     g.oppNums = g.oppNums || [];
     if (g.oppNums.indexOf(ui.kp) < 0) g.oppNums.push(ui.kp);
+    if (ui.kpFor === 'chg') {
+      // From the charge sheet: record the foul and stay on our side.
+      ui.kpFor = null; ui.drawer = null;
+      oppFoul(g, ui.kp, 'p', chgConfirm(g, ui.kp));
+      ui.kp = '';
+      return render();
+    }
     ui.oppSel = ui.kp; ui.kp = ''; ui.drawer = null; ui.side = 'them';
     saveGame(g);
     render();
@@ -821,8 +849,21 @@
     render();
   };
 
-  actions.drawer = function (x) { ui.drawer = x; ui.prompt = null; ui.armed = null; if (x === 'keypad') ui.kp = ''; render(); };
-  actions.closeDrawer = function () { ui.drawer = null; ui.armed = null; render(); };
+  actions.drawer = function (x) {
+    // 'keypad-chg' is the number keypad opened from the charge sheet: the number gets the offensive foul.
+    ui.kpFor = x === 'keypad-chg' ? 'chg' : null;
+    if (x === 'keypad-chg') x = 'keypad';
+    ui.drawer = x; ui.prompt = null; ui.armed = null;
+    if (x === 'keypad') ui.kp = '';
+    render();
+  };
+  actions.closeDrawer = function () { ui.drawer = null; ui.armed = null; ui.kpFor = null; render(); };
+  actions.chgFoul = function (x) {
+    var g = gameById(route.id);
+    ui.drawer = null;
+    oppFoul(g, x, 'p', chgConfirm(g, x));
+    render();
+  };
 
   // New game
   actions.draftSide = function (x) { draft.homeAway = x; render(); };

@@ -15,8 +15,8 @@ Plain HTML/CSS/JS, no build step, works offline. All data lives on the tablet.
 - **Period button:** end the quarter, go to OT, go back to fix a mistake, or end the game.
 - **Undo** removes the last entry. **Play log** lets you remove any earlier entry.
 - **Subs:** tap players on/off the court. Fouled-out and ejected players can't go back in.
-- **CHG** records a charge taken by the selected player. Record the opponent's offensive foul on their
-  tab if you want it in their fouls.
+- **CHG** records a charge taken by the selected player, then asks who on the other team was called for
+  the offensive foul (tap their number, **No #**, **+ #** for a new number, or **Skip**).
 - **Technicals:** a player's card shows a red **1T** badge and turns amber after one technical; the second
   ejects them (red card, EJECTED). In the box score, **EJ** = ejected and **FO** = fouled out.
 
