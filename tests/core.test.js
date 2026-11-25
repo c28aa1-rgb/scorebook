@@ -23,6 +23,27 @@ test('scores and shooting lines', function () {
   assert.strictEqual(c.opp['12'].pts, 2);
 });
 
+test('technical fouls: warning at 1, ejection at 2', function () {
+  var c = SB.computeGame(game([ev(1, 'us', 'a', 'foul', 't')]));
+  assert.strictEqual(SB.foulState(c.players.a.pf, c.rules, c.players.a.tf), 'warn');
+  assert.strictEqual(SB.outReason(c.players.a, c.rules), '');
+  c = SB.computeGame(game([ev(1, 'us', 'a', 'foul', 't'), ev(2, 'us', 'a', 'foul', 't')]));
+  assert.strictEqual(SB.foulState(c.players.a.pf, c.rules, c.players.a.tf), 'out');
+  assert.strictEqual(SB.outReason(c.players.a, c.rules), 'ejected');
+  // Personal fouls alone still foul out at 5; techs count toward that total.
+  assert.strictEqual(SB.outReason({ pf: 5, tf: 1 }, c.rules), 'fouled');
+  // Rules from before techOut existed get the default; 0 turns the limit off.
+  assert.strictEqual(SB.copyRules({ foulOut: 5 }).techOut, 2);
+  assert.strictEqual(SB.outReason({ pf: 3, tf: 3 }, SB.copyRules({ techOut: 0 })), '');
+});
+
+test('charges taken', function () {
+  var c = SB.computeGame(game([ev(1, 'us', 'a', 'chg'), ev(2, 'us', 'a', 'chg'), ev(2, 'us', 'b', 'chg')]));
+  assert.strictEqual(c.players.a.chg, 2);
+  assert.strictEqual(c.team.us.chg, 3);
+  assert.strictEqual(c.players.a.pf, 0);
+});
+
 test('percentages can be switched off', function () {
   assert.deepStrictEqual(SB.pctShown({}), { fg: true, tp: true, ft: true });
   assert.deepStrictEqual(SB.pctShown({ pct: { two: false } }), { fg: false, tp: true, ft: true });

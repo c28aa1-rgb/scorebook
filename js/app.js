@@ -57,12 +57,12 @@
   function saveMeta() { DB.saveMeta(meta, function (err) { if (err) toast('Could not save. Storage may be full.'); }); }
   function saveGame(g) { DB.saveGame(g, function (err) { if (err) toast('Could not save game. Storage may be full.'); }); }
 
-  function toast(text) {
+  function toast(text, ms) {
     var el = document.getElementById('toast');
     if (!el) { el = document.createElement('div'); el.id = 'toast'; el.className = 'toast'; document.body.appendChild(el); }
     el.textContent = text; el.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.hidden = true; }, 2600);
+    toastTimer = setTimeout(function () { el.hidden = true; }, ms || 2600);
   }
 
   // Message shown in the live pad header (e.g. "Pick a player first").
@@ -202,7 +202,7 @@
     else if (e.t === 'reb') d = e.v === 'o' ? 'offensive rebound' : 'defensive rebound';
     else if (e.t === 'foul') d = e.v === 't' ? 'technical foul' : 'foul';
     else if (e.t === 'timeout') d = e.v === 'short' ? '30-second timeout' : 'full timeout';
-    else d = { ast: 'assist', stl: 'steal', blk: 'block', to: 'turnover' }[e.t] || e.t;
+    else d = { ast: 'assist', stl: 'steal', blk: 'block', to: 'turnover', chg: 'took a charge' }[e.t] || e.t;
     return who + ' — ' + d;
   }
 
@@ -275,12 +275,12 @@
     function avg(n, gp) { return gp ? (n / gp).toFixed(1) : '—'; }
     var on = C.pctShown(meta.settings);
     var h = ['<div class="tw"><table class="st"><thead><tr><th class="l">#</th><th class="l">Player</th><th>GP</th>',
-      '<th>PTS</th><th>PPG</th><th>REB</th><th>RPG</th><th>AST</th><th>STL</th><th>TO</th><th>FG%</th><th>3P%</th><th>FT%</th><th>PF</th></tr></thead><tbody>'];
+      '<th>PTS</th><th>PPG</th><th>REB</th><th>RPG</th><th>AST</th><th>STL</th><th>CHG</th><th>TO</th><th>FG%</th><th>3P%</th><th>FT%</th><th>PF</th></tr></thead><tbody>'];
     ps.forEach(function (p) {
       var row = s.players[p.id] || { gp: 0, line: C.emptyLine() }, l = row.line, reb = l.oreb + l.dreb;
       h.push('<tr><td class="l b">' + esc(p.num) + '</td><td class="l nm">' + esc(shortName(p)) + '</td><td>' + row.gp +
         '</td><td>' + l.pts + '</td><td class="b">' + avg(l.pts, row.gp) + '</td><td>' + reb + '</td><td>' + avg(reb, row.gp) +
-        '</td><td>' + l.ast + '</td><td>' + l.stl + '</td><td>' + l.to + '</td><td>' + C.showPct(on.fg, l.fgm, l.fga) + '</td><td>' +
+        '</td><td>' + l.ast + '</td><td>' + l.stl + '</td><td>' + (l.chg || 0) + '</td><td>' + l.to + '</td><td>' + C.showPct(on.fg, l.fgm, l.fga) + '</td><td>' +
         C.showPct(on.tp, l.tpm, l.tpa) + '</td><td>' + C.showPct(on.ft, l.ftm, l.fta) + '</td><td>' + l.pf + '</td></tr>');
     });
     h.push('</tbody></table></div>');
@@ -346,7 +346,7 @@
     h.push('</div>');
     var r = C.copyRules(meta.settings.rules);
     h.push('<p class="note">Rules: ' + esc(r.name) + ' — ' + r.periods + ' × ' + r.periodMinutes + ' min, foul out at ' + r.foulOut +
-      ', bonus on team foul ' + r.bonusAt + ' each ' + r.bonusReset + ', ' + r.timeoutsFull + ' full + ' + r.timeoutsShort +
+      (r.techOut ? ', ejected at ' + r.techOut + ' technicals' : '') + ', bonus on team foul ' + r.bonusAt + ' each ' + r.bonusReset + ', ' + r.timeoutsFull + ' full + ' + r.timeoutsShort +
       ' 30-sec timeouts. Change these in Settings.</p>');
     h.push('</div>');
     return h.join('');
@@ -402,10 +402,26 @@
     return h.join('');
   }
 
-  function foulBoxes(pf, rules) {
+  function foulBoxes(pf, rules, tf) {
     var s = '<span class="boxes">';
     for (var i = 0; i < rules.foulOut; i++) s += '<span class="box' + (i < pf ? ' on' : '') + '"></span>';
-    return s + '</span>';
+    return s + '</span>' + (tf ? '<span class="tag-t">' + tf + 'T</span>' : '');
+  }
+
+  function outTag(l, rules) {
+    var why = C.outReason(l, rules);
+    return why ? '<span class="tag-out">' + (why === 'ejected' ? 'EJECTED' : 'FOULED OUT') + '</span><br>' : '';
+  }
+
+  // One message for everything a foul changed, so warnings never replace each other.
+  function foulNotice(name, l, rules, wasTech, ours) {
+    var why = C.outReason(l, rules), sub = ours ? ' Make a sub.' : '';
+    if (why === 'ejected') return name + ' is ejected (' + l.tf + ' technicals).' + sub;
+    if (why === 'fouled') return name + ' has fouled out.' + sub;
+    var out = [];
+    if (wasTech && rules.techOut > 1 && l.tf === rules.techOut - 1) out.push(name + ' has ' + l.tf + ' technical' + (l.tf > 1 ? 's' : '') + '. One more is an ejection.');
+    if (l.pf === rules.foulOut - 1) out.push(name + ' has ' + l.pf + ' fouls.');
+    return out.join(' ');
   }
 
   function ourCards(g, c) {
@@ -414,14 +430,14 @@
       var id = g.onCourt[i];
       if (!id) { h.push('<button class="card empty" data-a="drawer" data-x="bench">+ Put a player in</button>'); continue; }
       var p = player(id) || R.findPlayer(g, meta, id) || { num: '?', first: '?' };
-      var l = c.players[id] || C.emptyLine(), st = C.foulState(l.pf, c.rules);
+      var l = c.players[id] || C.emptyLine(), st = C.foulState(l.pf, c.rules, l.tf);
       var cls = 'card' + (ui.sel === id ? ' sel' : '') + (st === 'warn' ? ' warn' : '') + (st === 'out' ? ' out' : '') +
         (ui.flash === id ? ' hit' : '');
       h.push('<button class="' + cls + '" data-a="pick" data-x="' + id + '"' + (ui.flash === id ? ' data-flash="1"' : '') + '>' +
         '<span class="jr">' + esc(p.num) + '</span><span class="nm"><b>' + esc(shortName(p)) + '</b><small>FG ' + l.fgm + '/' + l.fga +
         ' · 3P ' + l.tpm + '/' + l.tpa + ' · FT ' + l.ftm + '/' + l.fta + ' · REB ' + (l.oreb + l.dreb) + '</small></span>' +
-        '<span class="' + (st === 'warn' ? 'warn' : st === 'out' ? 'out' : '') + '">' + (st === 'out' ? '<span class="tag-out">FOULED OUT</span><br>' : '') +
-        foulBoxes(l.pf, c.rules) + '</span><span class="pts">' + l.pts + '<small>PTS</small></span></button>');
+        '<span class="' + (st === 'warn' ? 'warn' : st === 'out' ? 'out' : '') + '">' + outTag(l, c.rules) +
+        foulBoxes(l.pf, c.rules, l.tf) + '</span><span class="pts">' + l.pts + '<small>PTS</small></span></button>');
     }
     h.push('</div>');
     return h.join('');
@@ -431,10 +447,10 @@
     var nums = (g.oppNums || []).slice().sort(function (a, b) { return R.byJersey({ num: a }, { num: b }); });
     var h = ['<div class="opp">'];
     nums.forEach(function (n) {
-      var l = c.opp[n] || C.emptyLine(), st = C.foulState(l.pf, c.rules);
+      var l = c.opp[n] || C.emptyLine(), st = C.foulState(l.pf, c.rules, l.tf);
       h.push('<button class="chip' + (ui.oppSel === n ? ' sel' : '') + (st === 'out' ? ' out' : '') + '" data-a="oppPick" data-x="' + esc(n) + '">' +
         '<span class="num">' + esc(n) + '</span><small>' + l.pts + ' pts</small><span class="' + (st === 'warn' ? 'warn' : st === 'out' ? 'out' : '') + '">' +
-        foulBoxes(l.pf, c.rules) + '</span></button>');
+        foulBoxes(l.pf, c.rules, l.tf) + '</span></button>');
     });
     var tl = c.opp[''] || C.emptyLine();
     h.push('<button class="chip team' + (ui.oppSel === null ? ' sel' : '') + '" data-a="oppPick" data-x=""><span class="num">TEAM</span><small>' + tl.pts + ' pts</small><small>no number</small></button>');
@@ -479,8 +495,8 @@
       key('act', 'miss:1', '×1', 'Missed FT', 'miss') + key('act', 'stl:', 'STL', 'Steal', 'stat') +
       key('act', 'reb:o', 'OREB', 'Off. rebound', 'stat') + key('act', 'reb:d', 'DREB', 'Def. rebound', 'stat') +
       key('act', 'blk:', 'BLK', 'Block', 'stat') + key('act', 'to:', 'TO', 'Turnover', 'stat') +
-      key('act', 'foul:p', 'FOUL', 'Personal foul', 'foul wide') + key('act', 'foul:t', 'TECH', 'Technical', 'foul') +
-      key('drawer', 'bench', 'SUB', 'Substitute', 'stat') +
+      key('act', 'foul:p', 'FOUL', 'Personal foul', 'foul') + key('act', 'foul:t', 'TECH', 'Technical', 'foul') +
+      key('act', 'chg:', 'CHG', 'Took a charge', 'stat') + key('drawer', 'bench', 'SUB', 'Substitute', 'stat') +
       '</div>';
   }
 
@@ -527,9 +543,10 @@
       var ps = seasonPlayers(), count = g.onCourt.filter(Boolean).length;
       h = '<p class="note" style="margin-top:0">Tap to move players on or off the court. Blue = on court.</p><div class="bench">';
       ps.forEach(function (p) {
-        var on = g.onCourt.indexOf(p.id) >= 0, l = c.players[p.id] || C.emptyLine(), out = l.pf >= r.foulOut;
-        h += '<button class="bp' + (on ? ' on' : '') + (out ? ' out' : '') + '" data-a="toggleCourt" data-x="' + p.id + '"><span class="num">' + esc(p.num) +
-          '</span><span>' + esc(shortName(p)) + '<small>' + l.pts + ' pts · ' + l.pf + ' PF' + (out ? ' · OUT' : '') + '</small></span></button>';
+        var on = g.onCourt.indexOf(p.id) >= 0, l = c.players[p.id] || C.emptyLine(), why = C.outReason(l, r);
+        h += '<button class="bp' + (on ? ' on' : '') + (why ? ' out' : '') + '" data-a="toggleCourt" data-x="' + p.id + '"><span class="num">' + esc(p.num) +
+          '</span><span>' + esc(shortName(p)) + '<small>' + l.pts + ' pts · ' + l.pf + ' PF' + (l.tf ? ' · ' + l.tf + 'T' : '') +
+          (why ? (why === 'ejected' ? ' · EJECTED' : ' · OUT') : '') + '</small></span></button>';
       });
       h += '</div>';
       return sheet('Substitutions · ' + count + ' of 5 on court', h, '<button class="btn pri" data-a="closeDrawer">Done</button>');
@@ -602,7 +619,7 @@
       '<div class="fld xs"><span class="lab">&nbsp;</span><button class="btn" data-a="newSeason">Start season</button></div></div>');
 
     h.push('<h2>Rules (new games)</h2><div class="form">' +
-      num('periods', 'Quarters') + num('periodMinutes', 'Minutes') + num('foulOut', 'Foul out at') + num('bonusAt', 'Bonus on foul') +
+      num('periods', 'Quarters') + num('periodMinutes', 'Minutes') + num('foulOut', 'Foul out at') + num('techOut', 'Ejected at techs') + num('bonusAt', 'Bonus on foul') +
       '<div class="fld xs" style="flex-basis:9rem"><label for="r-reset">Bonus resets</label><select id="r-reset" data-rule="bonusReset"><option value="quarter"' + (r.bonusReset === 'quarter' ? ' selected' : '') + '>Each quarter</option><option value="half"' + (r.bonusReset === 'half' ? ' selected' : '') + '>Each half</option></select></div>' +
       num('timeoutsFull', 'Full TOs') + num('timeoutsShort', '30-sec TOs') + num('otMinutes', 'OT minutes') + num('otTimeoutsFull', 'TOs per OT') +
       '<div class="fld xs" style="flex-basis:12rem"><label for="r-carry">OT team fouls</label><select id="r-carry" data-rule="otFoulsCarry"><option value="1"' + (r.otFoulsCarry ? ' selected' : '') + '>Carry from Q4</option><option value="0"' + (!r.otFoulsCarry ? ' selected' : '') + '>Reset each OT</option></select></div>' +
@@ -671,16 +688,20 @@
     if (!ui.sel) { padMsg('Pick a player first'); return render(); }
     if (t === 'make' || t === 'miss') v = parseInt(v, 10);
     var c = C.computeGame(g), pl = c.players[ui.sel];
-    if (t === 'foul' && pl && pl.pf >= c.rules.foulOut) { padMsg('That player has already fouled out'); return render(); }
+    if (t === 'foul' && pl && C.outReason(pl, c.rules)) {
+      padMsg(C.outReason(pl, c.rules) === 'ejected' ? 'That player has been ejected' : 'That player has already fouled out');
+      return render();
+    }
     var e = addEvent(g, 'us', ui.sel, t, v === '' ? undefined : v);
     ui.flash = ui.sel;
     if (t === 'make' && v > 1) ui.prompt = { k: 'ast', p: ui.sel };
     else if (t === 'miss') ui.prompt = { k: 'reb', p: ui.sel };
     if (t === 'foul') {
-      var after = C.computeGame(g), pf = after.players[ui.sel].pf, p = player(ui.sel);
-      if (pf >= after.rules.foulOut) toast('#' + p.num + ' ' + shortName(p) + ' has fouled out. Make a sub.');
-      else if (pf === after.rules.foulOut - 1) toast('#' + p.num + ' ' + shortName(p) + ' has ' + pf + ' fouls.');
-      if (after.shooting.them && after.currentFouls.us === after.rules.bonusAt - 1) toast(g.opponent + ' shoot on the next foul (bonus).');
+      var after = C.computeGame(g), p = player(ui.sel);
+      var notes = [foulNotice('#' + p.num + ' ' + shortName(p), after.players[ui.sel], after.rules, v === 't', true)];
+      if (after.shooting.them && after.currentFouls.us === after.rules.bonusAt - 1) notes.push(g.opponent + ' shoot on the next foul (bonus).');
+      notes = notes.filter(Boolean);
+      if (notes.length) toast(notes.join(' '), notes.length > 1 || C.outReason(after.players[ui.sel], after.rules) ? 5000 : 0);
     }
     // Free throws usually come in pairs: keep the shooter selected.
     if (!(t === 'make' || t === 'miss') || v !== 1) ui.sel = null;
@@ -707,7 +728,8 @@
     addEvent(g, 'them', ui.oppSel || '', t, v);
     if (t === 'foul') {
       var c = C.computeGame(g);
-      if (ui.oppSel && c.opp[ui.oppSel].pf >= c.rules.foulOut) toast(g.opponent + ' #' + ui.oppSel + ' has fouled out.');
+      var note = ui.oppSel ? foulNotice(g.opponent + ' #' + ui.oppSel, c.opp[ui.oppSel], c.rules, v === 't') : '';
+      if (note) toast(note, C.outReason(c.opp[ui.oppSel], c.rules) ? 5000 : 0);
     }
     if (!(t === 'make' && v === 1)) ui.oppSel = null;
     render();
@@ -786,7 +808,7 @@
     if (i >= 0) g.onCourt.splice(i, 1);
     else {
       var c = C.computeGame(g), l = c.players[x];
-      if (l && l.pf >= c.rules.foulOut) { toast('That player has fouled out.'); return; }
+      if (l && C.outReason(l, c.rules)) { toast(C.outReason(l, c.rules) === 'ejected' ? 'That player has been ejected.' : 'That player has fouled out.'); return; }
       if (g.onCourt.length >= 5) { toast('5 players are on court. Take one off first.'); return; }
       g.onCourt.push(x);
       if (g.appeared.indexOf(x) < 0) g.appeared.push(x);

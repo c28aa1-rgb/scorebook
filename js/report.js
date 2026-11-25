@@ -120,6 +120,13 @@
     return out.sort(byJersey);
   }
 
+  // Fouls with technicals noted, e.g. "3 (2T)"; bold with a mark when the player had to leave.
+  function pfCell(l, rules) {
+    var why = C.outReason(l, rules);
+    return '<td' + (why ? ' class="b"' : '') + '>' + l.pf + (l.tf ? ' (' + l.tf + 'T)' : '') +
+      (why === 'ejected' ? ' EJ' : why ? ' FO' : '') + '</td>';
+  }
+
   function foulsByPeriod(game, n) {
     var f = { us: [], them: [] }, i;
     for (i = 0; i < n; i++) { f.us.push(0); f.them.push(0); }
@@ -155,22 +162,22 @@
     var rows = boxPlayers(game, meta, c), t = c.team.us;
     var h = ['<div class="tw"><table><thead><tr><th class="l">#</th><th class="l">Player</th>',
       '<th class="b">PTS</th><th>FG</th><th>3P</th><th>FT</th><th>OR</th><th>DR</th><th>REB</th>',
-      '<th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th></tr></thead><tbody>'];
+      '<th>AST</th><th>STL</th><th>BLK</th><th>CHG</th><th>TO</th><th>PF</th></tr></thead><tbody>'];
     rows.forEach(function (r) {
       var l = r.line;
       h.push('<tr><td class="jr">' + esc(r.num) + '</td><td class="nm">' + esc(playerName(r.p, names)) +
         '</td><td class="b">' + l.pts + '</td><td>' + ma(l.fgm, l.fga) + '</td><td>' + ma(l.tpm, l.tpa) +
         '</td><td>' + ma(l.ftm, l.fta) + '</td><td>' + l.oreb + '</td><td>' + l.dreb + '</td><td>' +
         (l.oreb + l.dreb) + '</td><td>' + l.ast + '</td><td>' + l.stl + '</td><td>' + l.blk +
-        '</td><td>' + l.to + '</td><td' + (l.pf >= c.rules.foulOut ? ' class="b"' : '') + '>' + l.pf + '</td></tr>');
+        '</td><td>' + (l.chg || 0) + '</td><td>' + l.to + '</td>' + pfCell(l, c.rules) + '</tr>');
     });
     h.push('<tr class="tot"><td class="l" colspan="2">Team</td><td>' + t.pts + '</td><td>' + ma(t.fgm, t.fga) +
       '</td><td>' + ma(t.tpm, t.tpa) + '</td><td>' + ma(t.ftm, t.fta) + '</td><td>' + t.oreb + '</td><td>' +
       t.dreb + '</td><td>' + (t.oreb + t.dreb) + '</td><td>' + t.ast + '</td><td>' + t.stl + '</td><td>' +
-      t.blk + '</td><td>' + t.to + '</td><td>' + t.pf + '</td></tr>');
+      t.blk + '</td><td>' + (t.chg || 0) + '</td><td>' + t.to + '</td><td>' + t.pf + (t.tf ? ' (' + t.tf + 'T)' : '') + '</td></tr>');
     var on = C.pctShown(meta.settings);
     h.push('<tr class="pct"><td colspan="3"></td><td>' + pctText(on.fg, t.fgm, t.fga) + '</td><td>' +
-      pctText(on.tp, t.tpm, t.tpa) + '</td><td>' + pctText(on.ft, t.ftm, t.fta) + '</td><td colspan="8"></td></tr>');
+      pctText(on.tp, t.tpm, t.tpa) + '</td><td>' + pctText(on.ft, t.ftm, t.fta) + '</td><td colspan="9"></td></tr>');
     h.push('</tbody></table></div>');
     return h.join('');
   }
@@ -185,8 +192,7 @@
     keys.forEach(function (k) {
       var l = c.opp[k];
       h.push('<tr><td class="jr">' + (k === '' ? '<span class="dim">Team</span>' : esc(k)) + '</td><td class="b">' +
-        l.pts + '</td><td>' + l.fgm + '</td><td>' + l.tpm + '</td><td>' + l.ftm + '</td><td' +
-        (l.pf >= c.rules.foulOut ? ' class="b"' : '') + '>' + l.pf + '</td></tr>');
+        l.pts + '</td><td>' + l.fgm + '</td><td>' + l.tpm + '</td><td>' + l.ftm + '</td>' + pfCell(l, c.rules) + '</tr>');
     });
     var t = c.team.them;
     h.push('<tr class="tot"><td class="l">Team</td><td>' + t.pts + '</td><td>' + t.fgm + '</td><td>' + t.tpm +
@@ -310,10 +316,10 @@
     lines.push('');
     lines.push('Scoring:');
     boxPlayers(game, meta, c).forEach(function (r) {
-      if (!r.line.pts && !(r.line.oreb + r.line.dreb) && !r.line.ast) return;
+      if (!r.line.pts && !(r.line.oreb + r.line.dreb) && !r.line.ast && !r.line.chg) return;
       var nm = playerName(r.p, names);
       lines.push('#' + r.num + (nm ? ' ' + nm : '') + ' — ' + r.line.pts + ' pts, ' + (r.line.oreb + r.line.dreb) +
-        ' reb, ' + r.line.ast + ' ast');
+        ' reb, ' + r.line.ast + ' ast' + (r.line.chg ? ', ' + r.line.chg + ' charge' + (r.line.chg > 1 ? 's' : '') + ' taken' : ''));
     });
     lines.push('');
     var on = C.pctShown(meta.settings);

@@ -7,7 +7,7 @@
  *                p: playerId (us) or jersey string (them, '' = unknown),
  *                t: type, v: value }
  * Types: 'make' (v 1|2|3), 'miss' (v 1|2|3), 'reb' (v 'o'|'d'), 'ast', 'stl',
- *        'blk', 'to', 'foul' (v 'p'|'t'), 'timeout' (v 'full'|'short').
+ *        'blk', 'to', 'chg' (charge taken), 'foul' (v 'p'|'t'), 'timeout' (v 'full'|'short').
  */
 (function (root) {
   'use strict';
@@ -17,7 +17,8 @@
     periods: 4,
     periodMinutes: 8,
     foulOut: 5,
-    bonusAt: 5,            // team foul number that starts free throws
+    techOut: 2,            // technical fouls that eject a player (NFHS); 0 = no limit
+    bonusAt: 5,           // team foul number that starts free throws
     bonusReset: 'quarter', // 'quarter' | 'half'
     otFoulsCarry: true,    // 4th-quarter team fouls carry into OT (NFHS)
     timeoutsFull: 3,
@@ -49,7 +50,7 @@
 
   function emptyLine() {
     return { pts: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0,
-             oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, to: 0, pf: 0, tf: 0 };
+             oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, to: 0, pf: 0, tf: 0, chg: 0 };
   }
 
   function addShot(line, made, v) {
@@ -70,6 +71,7 @@
       case 'stl': line.stl++; break;
       case 'blk': line.blk++; break;
       case 'to': line.to++; break;
+      case 'chg': line.chg++; break;
       case 'foul': line.pf++; if (e.v === 't') line.tf++; break;
     }
   }
@@ -153,11 +155,20 @@
     return r;
   }
 
-  function foulState(pf, rules) {
+  // tf = technical fouls (already included in pf). 'warn' = one foul, or one technical, from leaving.
+  function foulState(pf, rules, tf) {
     rules = rules || DEFAULT_RULES;
-    if (pf >= rules.foulOut) return 'out';
-    if (pf === rules.foulOut - 1) return 'warn';
+    var why = outReason({ pf: pf, tf: tf || 0 }, rules);
+    if (why) return 'out';
+    if (pf === rules.foulOut - 1 || (rules.techOut > 1 && tf === rules.techOut - 1)) return 'warn';
     return pf >= rules.foulOut - 2 ? 'caution' : 'ok';
+  }
+
+  // Why a player can no longer play: 'ejected' (technicals), 'fouled' (foul total) or ''.
+  function outReason(line, rules) {
+    rules = rules || DEFAULT_RULES;
+    if (rules.techOut > 0 && (line.tf || 0) >= rules.techOut) return 'ejected';
+    return line.pf >= rules.foulOut ? 'fouled' : '';
   }
 
   function pct(m, a) { return a ? Math.round((m / a) * 1000) / 10 : null; }
@@ -239,6 +250,7 @@
     computeSeason: computeSeason,
     gameFlow: gameFlow,
     foulState: foulState,
+    outReason: outReason,
     pct: pct,
     fmtPct: fmtPct,
     pctShown: pctShown,

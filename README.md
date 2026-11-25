@@ -14,7 +14,11 @@ Plain HTML/CSS/JS, no build step, works offline. All data lives on the tablet.
   foul, and timeouts left (tall pips = full, short pips = 30-second). Tap the timeouts to record one.
 - **Period button:** end the quarter, go to OT, go back to fix a mistake, or end the game.
 - **Undo** removes the last entry. **Play log** lets you remove any earlier entry.
-- **Subs:** tap players on/off the court. Fouled-out players can't go back in.
+- **Subs:** tap players on/off the court. Fouled-out and ejected players can't go back in.
+- **CHG** records a charge taken by the selected player. Record the opponent's offensive foul on their
+  tab if you want it in their fouls.
+- **Technicals:** a player's card shows a red **1T** badge and turns amber after one technical; the second
+  ejects them (red card, EJECTED). In the box score, **EJ** = ejected and **FO** = fouled out.
 
 ## After the game
 
@@ -33,7 +37,8 @@ runs, timeouts) and a running-score grid like the paper book.
 
 ## Rules
 
-Defaults to NFHS as played in the Ivy Prep league: 4 × 8 min, foul out at 5, bonus on the 5th team foul
+Defaults to NFHS as played in the Ivy Prep league: 4 × 8 min, foul out at 5 (technicals count toward the 5),
+ejected on a 2nd technical, bonus on the 5th team foul
 each quarter (4th-quarter fouls carry into OT), 3 full + 2 30-second timeouts, OT 4 min with 1 extra
 timeout. All editable in Settings; each game keeps the rules it started with.
 
