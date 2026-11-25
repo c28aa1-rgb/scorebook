@@ -6,8 +6,11 @@ offline. All data lives on the tablet.
 
 On wide screens (1100 CSS px and up, e.g. the Fire HD 10) the live screen has three columns: player cards,
 the stat pad, and a **Plays** panel with recent plays, the running score and the timeout countdown (tap ×
-twice to remove a play). Narrower screens use the compact two-column layout with a bottom bar. The screen
-stays awake while a game is open (needs the https address).
+twice to remove a play). Narrower screens use the compact two-column layout with a bottom bar.
+
+The screen stays on whenever the app is open (Settings → Screen can limit it to games). It needs the https
+address, and on iPad iPadOS 16.4+ (18.4+ when opened from the home screen); Settings shows whether it's
+working on that device.
 
 ## Using it during a game
 

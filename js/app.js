@@ -96,23 +96,41 @@
     }
   }
 
-  // Keep the screen on while scoring (Screen Wake Lock API; needs https). The browser drops
-  // the lock when the tab is hidden, so it's requested again when the app comes back.
-  var wakeLock = null;
+  // Keep the screen on (Screen Wake Lock API; needs https; iPadOS 16.4+, 18.4+ for a home-screen
+  // app). By default the whole time the app is open; Settings can limit it to games. The browser
+  // drops the lock when the app is hidden, so it's requested again on return and on any tap
+  // (some browsers only grant it right after a tap).
+  var wakeLock = null, wakeRefused = false;
   function wantWake() {
+    if (meta && meta.settings.keepAwake !== 'games') return true;
     if (route.name === 'game') return true;
     var g = route.name === 'report' && gameById(route.id);
     return !!(g && g.status !== 'final');
   }
+  function wakeStatus() {
+    if (!navigator.wakeLock) {
+      return 'This browser can’t keep the screen on' + (location.protocol === 'https:' ? '' : ' at this address — use the https one') +
+        '. On iPad it needs iPadOS 16.4 or later (18.4 or later for the home-screen app).';
+    }
+    if (wakeLock && wakeLock !== 'pending') return 'Screen is being kept on now.';
+    if (!wantWake()) return 'Screen will stay on during games.';
+    return wakeRefused ? 'This browser refused to keep the screen on. Tap anywhere to try again; if it still won’t, check that Low Power Mode is off.'
+      : 'Screen isn’t being kept on yet — tap anywhere to turn it on.';
+  }
+
   function syncWake() {
     if (!navigator.wakeLock) return;
     if (wantWake() && !wakeLock && document.visibilityState === 'visible') {
       wakeLock = 'pending';
       navigator.wakeLock.request('screen').then(function (l) {
-        wakeLock = l;
-        l.addEventListener('release', function () { if (wakeLock === l) wakeLock = null; });
+        wakeLock = l; wakeRefused = false;
+        l.addEventListener('release', function () { if (wakeLock === l) { wakeLock = null; if (route.name === 'settings') render(); } });
         if (!wantWake()) syncWake();
-      })['catch'](function () { wakeLock = null; });
+        if (route.name === 'settings') render();
+      })['catch'](function () {
+        wakeLock = null;
+        if (!wakeRefused) { wakeRefused = true; if (route.name === 'settings') render(); }
+      });
     } else if (!wantWake() && wakeLock && wakeLock !== 'pending') {
       var l = wakeLock; wakeLock = null; l.release()['catch'](function () {});
     }
@@ -178,6 +196,8 @@
           window.addEventListener('hashchange', onRoute);
           window.addEventListener('resize', fitScale);
           document.addEventListener('visibilitychange', syncWake);
+          window.addEventListener('focus', syncWake);
+          window.addEventListener('pageshow', syncWake);
           document.addEventListener('fullscreenchange', onFullscreen);
           document.addEventListener('webkitfullscreenchange', onFullscreen);
           onRoute();
@@ -802,8 +822,12 @@
       '<div class="fld"><label for="s-full">Full screen</label><select id="s-full" data-setting="autoFull">' +
       '<option value="1"' + (autoFullscreen() ? ' selected' : '') + '>Go full screen when a game opens</option>' +
       '<option value="0"' + (autoFullscreen() ? '' : ' selected') + '>Only with the Full screen button</option></select></div>' +
-      '</div><p class="note">' + (fsAvailable() ? 'Swipe down from the top or tap Exit to leave full screen.'
-        : 'This browser is already full screen or doesn’t support it. On iPad, use Share → Add to Home Screen for a full-screen app.') + '</p>');
+      '<div class="fld"><label for="s-awake">Keep screen on</label><select id="s-awake" data-setting="keepAwake">' +
+      '<option value="always"' + (s.keepAwake !== 'games' ? ' selected' : '') + '>Whenever the app is open</option>' +
+      '<option value="games"' + (s.keepAwake === 'games' ? ' selected' : '') + '>Only during games</option></select></div>' +
+      '</div><p class="note">' + (fsAvailable() ? 'Swipe down from the top or tap Exit to leave full screen. '
+        : 'This browser is already full screen or doesn’t support it. On iPad, use Share → Add to Home Screen for a full-screen app. ') +
+      '<b>' + wakeStatus() + '</b></p>');
 
     h.push('<h2>Shooting percentages</h2><div class="form">' +
       pctSel('two', '2-pointers') + pctSel('three', '3-pointers') + pctSel('ft', 'Free throws') +
@@ -1239,6 +1263,7 @@
   }
 
   app.addEventListener('click', function (ev) {
+    if (!wakeLock) syncWake();
     var el = closest(ev.target, 'data-a');
     if (!el || el.disabled) return;
     // Scrim closes only when the dark area itself is tapped.
@@ -1278,6 +1303,7 @@
     } else if ((k = el.getAttribute('data-setting'))) {
       meta.settings[k] = el.value.trim();
       saveMeta();
+      if (k === 'keepAwake') { syncWake(); render(); }
     } else if (el.getAttribute('data-season')) {
       meta.currentSeasonId = el.value;
       saveMeta(); toast('Switched season.');
