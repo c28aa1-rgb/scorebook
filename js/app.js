@@ -202,6 +202,7 @@
     else if (e.t === 'reb') d = e.v === 'o' ? 'offensive rebound' : 'defensive rebound';
     else if (e.t === 'foul') d = e.v === 't' ? 'technical foul' : e.of ? 'offensive foul' : 'foul';
     else if (e.t === 'timeout') d = e.v === 'short' ? '30-second timeout' : 'full timeout';
+    else if (e.t === 'sub') d = e.v === 'in' ? 'subbed in' : 'subbed out';
     else d = { ast: 'assist', stl: 'steal', blk: 'block', to: 'turnover', chg: 'took a charge' }[e.t] || e.t;
     return who + ' — ' + d;
   }
@@ -263,29 +264,116 @@
       h.push('</ul>');
     }
 
+    if (finals.length) h.push('<h2>Season leaders</h2>' + leaders(s));
     h.push('<h2>Season stats</h2>');
     h.push(seasonTable(s));
+    if (finals.length) h.push('<p class="note">Tap a player for their game-by-game log.</p>');
     h.push('</div>');
     return h.join('');
   };
 
+  function avg(n, gp) { return gp ? (n / gp).toFixed(1) : '—'; }
+
+  // Top 3 in each category. Per-game averages for counting stats; percentages need
+  // at least 1 attempt per game played and 5 in all, so one lucky shot doesn't lead.
+  function leaders(s) {
+    var ps = seasonPlayers(), on = C.pctShown(meta.settings), cats = [
+      { label: 'Points', unit: 'PPG', val: function (r) { return r.line.pts / r.gp; } },
+      { label: 'Rebounds', unit: 'RPG', val: function (r) { return (r.line.oreb + r.line.dreb) / r.gp; } },
+      { label: 'Assists', unit: 'APG', val: function (r) { return r.line.ast / r.gp; } },
+      { label: 'Steals', unit: 'SPG', val: function (r) { return r.line.stl / r.gp; } },
+      { label: 'Blocks', unit: 'BPG', val: function (r) { return r.line.blk / r.gp; } },
+      { label: 'Charges taken', unit: 'total', whole: true, val: function (r) { return r.line.chg || 0; } },
+      { label: 'Plus/minus', unit: 'total', whole: true, pm: true, val: function (r) { return r.pmGp ? r.pm : null; } }
+    ];
+    function pctCat(label, show, m, a) {
+      if (show) cats.push({ label: label, unit: '5+ attempts', pct: true, val: function (r) {
+        var att = r.line[a]; return att >= Math.max(5, r.gp) ? r.line[m] / att * 100 : null;
+      } });
+    }
+    pctCat('Field goal %', on.fg, 'fgm', 'fga');
+    pctCat('3-point %', on.tp, 'tpm', 'tpa');
+    pctCat('Free throw %', on.ft, 'ftm', 'fta');
+    var h = ['<div class="leaders">'];
+    cats.forEach(function (cat) {
+      var rows = [];
+      ps.forEach(function (p) {
+        var r = s.players[p.id];
+        if (!r || !r.gp) return;
+        var v = cat.val(r);
+        if (v !== null && (cat.pm || v > 0)) rows.push({ p: p, v: v });
+      });
+      rows.sort(function (a, b) { return b.v - a.v; });
+      h.push('<div class="ldr"><h3>' + cat.label + ' <small>' + cat.unit + '</small></h3>');
+      if (!rows.length) h.push('<p class="none">—</p>');
+      else h.push('<ol>' + rows.slice(0, 3).map(function (x) {
+        var v = cat.pm ? C.fmtPm(x.v) : cat.whole ? String(x.v) : x.v.toFixed(1);
+        return '<li><button data-a="go" data-x="#player/' + x.p.id + '"><span class="jr">' + esc(x.p.num) + '</span>' +
+          esc(shortName(x.p)) + '<b>' + v + '</b></button></li>';
+      }).join('') + '</ol>');
+      h.push('</div>');
+    });
+    h.push('</div>');
+    return h.join('');
+  }
+
   function seasonTable(s) {
     var ps = seasonPlayers();
     if (!ps.length) return '<p class="note">Season totals appear here once you have a roster and finished games.</p>';
-    function avg(n, gp) { return gp ? (n / gp).toFixed(1) : '—'; }
     var on = C.pctShown(meta.settings);
     var h = ['<div class="tw"><table class="st"><thead><tr><th class="l">#</th><th class="l">Player</th><th>GP</th>',
-      '<th>PTS</th><th>PPG</th><th>REB</th><th>RPG</th><th>AST</th><th>STL</th><th>CHG</th><th>TO</th><th>FG%</th><th>3P%</th><th>FT%</th><th>PF</th></tr></thead><tbody>'];
+      '<th>PTS</th><th>PPG</th><th>REB</th><th>RPG</th><th>AST</th><th>STL</th><th>CHG</th><th>TO</th><th>FG%</th><th>3P%</th><th>FT%</th><th>PF</th><th>+/−</th></tr></thead><tbody>'];
     ps.forEach(function (p) {
-      var row = s.players[p.id] || { gp: 0, line: C.emptyLine() }, l = row.line, reb = l.oreb + l.dreb;
-      h.push('<tr><td class="l b">' + esc(p.num) + '</td><td class="l nm">' + esc(shortName(p)) + '</td><td>' + row.gp +
+      var row = s.players[p.id] || { gp: 0, line: C.emptyLine(), pm: 0, pmGp: 0 }, l = row.line, reb = l.oreb + l.dreb;
+      h.push('<tr class="tap" data-a="go" data-x="#player/' + p.id + '"><td class="l b">' + esc(p.num) + '</td><td class="l nm">' + esc(shortName(p)) + '</td><td>' + row.gp +
         '</td><td>' + l.pts + '</td><td class="b">' + avg(l.pts, row.gp) + '</td><td>' + reb + '</td><td>' + avg(reb, row.gp) +
         '</td><td>' + l.ast + '</td><td>' + l.stl + '</td><td>' + (l.chg || 0) + '</td><td>' + l.to + '</td><td>' + C.showPct(on.fg, l.fgm, l.fga) + '</td><td>' +
-        C.showPct(on.tp, l.tpm, l.tpa) + '</td><td>' + C.showPct(on.ft, l.ftm, l.fta) + '</td><td>' + l.pf + '</td></tr>');
+        C.showPct(on.tp, l.tpm, l.tpa) + '</td><td>' + C.showPct(on.ft, l.ftm, l.fta) + '</td><td>' + l.pf + '</td><td>' +
+        (row.pmGp ? C.fmtPm(row.pm) : '—') + '</td></tr>');
     });
     h.push('</tbody></table></div>');
     return h.join('');
   }
+
+  // ----- Player game log -----
+  screens.player = function () {
+    var p = player(route.id), season = find(meta.seasons, meta.currentSeasonId);
+    if (!p) return pageHead('Player not found', backBtn('#home', 'Home'), '');
+    var finals = seasonGames().filter(function (g) { return g.status === 'final'; });
+    var s = C.computeSeason(finals, seasonPlayers()), r = s.players[p.id] || { gp: 0, line: C.emptyLine(), pm: 0, pmGp: 0, games: [] };
+    var on = C.pctShown(meta.settings), t = r.line, gp = r.gp;
+    var h = [pageHead('#' + p.num + ' ' + ((p.first || '') + ' ' + (p.last || '')).trim() + ' · ' + season.name, backBtn('#home', 'Home'), '')];
+    h.push('<div class="pg-bd">');
+    h.push('<div class="record">' + [
+      [gp, 'Games'], [avg(t.pts, gp), 'Pts / game'], [avg(t.oreb + t.dreb, gp), 'Reb / game'], [avg(t.ast, gp), 'Ast / game'],
+      [avg(t.stl, gp), 'Stl / game'], [t.chg || 0, 'Charges'], [r.pmGp ? C.fmtPm(r.pm) : '—', 'Plus/minus']
+    ].map(function (x) { return '<div><b class="num">' + x[0] + '</b><span>' + x[1] + '</span></div>'; }).join('') + '</div>');
+    h.push('<h2>Game log</h2>');
+    if (!r.games.length) { h.push('<p class="note">No finished games yet this season.</p></div>'); return h.join(''); }
+    function ma(m, a) { return m + '-' + a; }
+    function cells(l, pm) {
+      return '<td class="b">' + l.pts + '</td><td>' + (l.oreb + l.dreb) + '</td><td>' + l.ast + '</td><td>' + l.stl + '</td><td>' + l.blk +
+        '</td><td>' + (l.chg || 0) + '</td><td>' + l.to + '</td><td>' + l.pf + '</td><td>' + ma(l.fgm, l.fga) + '</td><td>' + ma(l.tpm, l.tpa) +
+        '</td><td>' + ma(l.ftm, l.fta) + '</td><td>' + pm + '</td>';
+    }
+    h.push('<div class="tw"><table class="st"><thead><tr><th class="l">Date</th><th class="l">Opponent</th><th class="l">Result</th>' +
+      '<th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>CHG</th><th>TO</th><th>PF</th><th>FG</th><th>3P</th><th>FT</th><th>+/−</th></tr></thead><tbody>');
+    r.games.forEach(function (x) {
+      var res = x.us > x.them ? 'W' : x.us < x.them ? 'L' : 'T';
+      h.push('<tr class="tap" data-a="go" data-x="#report/' + x.id + '"><td class="l">' + esc(R.fmtDate(x.date)) + '</td><td class="l nm">' +
+        (x.homeAway === 'away' ? '@ ' : 'vs ') + esc(x.opponent) + '</td><td class="l b">' + res + ' ' + x.us + '–' + x.them + '</td>' +
+        cells(x.line, C.fmtPm(x.pm)) + '</tr>');
+    });
+    h.push('<tr class="tot"><td class="l" colspan="3">Totals</td>' + cells(t, r.pmGp ? C.fmtPm(r.pm) : '—') + '</tr>');
+    h.push('<tr class="tot"><td class="l" colspan="3">Per game</td><td class="b">' + avg(t.pts, gp) + '</td><td>' + avg(t.oreb + t.dreb, gp) +
+      '</td><td>' + avg(t.ast, gp) + '</td><td>' + avg(t.stl, gp) + '</td><td>' + avg(t.blk, gp) + '</td><td>' + avg(t.chg || 0, gp) +
+      '</td><td>' + avg(t.to, gp) + '</td><td>' + avg(t.pf, gp) + '</td><td>' + C.showPct(on.fg, t.fgm, t.fga) + (on.fg && t.fga ? '%' : '') +
+      '</td><td>' + C.showPct(on.tp, t.tpm, t.tpa) + (on.tp && t.tpa ? '%' : '') + '</td><td>' + C.showPct(on.ft, t.ftm, t.fta) + (on.ft && t.fta ? '%' : '') +
+      '</td><td>' + (r.pmGp ? (r.pm > 0 ? '+' : '') + avg(r.pm, r.pmGp) : '—') + '</td></tr>');
+    h.push('</tbody></table></div><p class="note">Tap a game to open its report. Plus/minus counts only games that recorded substitutions.</p>');
+    h.push('</div>');
+    return h.join('');
+  };
 
   // ----- Roster -----
   screens.roster = function () {
@@ -801,9 +889,12 @@
     return out;
   }
 
+  // Undo removes the last play, skipping over subs (change those in the Subs sheet).
   actions.undo = function () {
-    var g = gameById(route.id), e = g.events[g.events.length - 1];
-    if (!e) return;
+    var g = gameById(route.id), i = g.events.length - 1;
+    while (i >= 0 && g.events[i].t === 'sub') i--;
+    if (i < 0) { toast('Nothing to undo. Use Subs to change who’s on court.'); return; }
+    var e = g.events[i];
     var gone = linkedSeqs(g, e.s), removed = g.events.filter(function (x) { return gone.indexOf(x.s) >= 0; });
     g.events = g.events.filter(function (x) { return gone.indexOf(x.s) < 0; });
     saveGame(g);
@@ -817,6 +908,8 @@
     if (ui.armed !== 'ev' + s) { ui.armed = 'ev' + s; return render(); }
     var gone = linkedSeqs(g, s);
     g.events = g.events.filter(function (e) { return gone.indexOf(e.s) < 0; });
+    // Removing a logged sub changes who is on court now.
+    if (g.subLog) g.onCourt = C.lineupAfter(g);
     ui.armed = null;
     saveGame(g);
     render();
@@ -847,14 +940,24 @@
     go('#game/' + g.id);
   };
 
+  // Subs are logged as events so plus/minus knows who was on court. Taking a player
+  // off and straight back on (or the reverse) cancels out instead of logging both.
+  function logSub(g, id, v) {
+    if (!g.subLog) return;
+    var last = g.events[g.events.length - 1];
+    if (last && last.t === 'sub' && last.p === id && last.v !== v && last.q === g.quarter) g.events.pop();
+    else addEvent(g, 'us', id, 'sub', v);
+  }
+
   actions.toggleCourt = function (x) {
     var g = gameById(route.id), i = g.onCourt.indexOf(x);
-    if (i >= 0) g.onCourt.splice(i, 1);
+    if (i >= 0) { g.onCourt.splice(i, 1); logSub(g, x, 'out'); }
     else {
       var c = C.computeGame(g), l = c.players[x];
       if (l && C.outReason(l, c.rules)) { toast(C.outReason(l, c.rules) === 'ejected' ? 'That player has been ejected.' : 'That player has fouled out.'); return; }
       if (g.onCourt.length >= 5) { toast('5 players are on court. Take one off first.'); return; }
       g.onCourt.push(x);
+      logSub(g, x, 'in');
       if (g.appeared.indexOf(x) < 0) g.appeared.push(x);
       // Keep the game's roster snapshot complete for players added mid-season.
       var p = player(x);
@@ -903,7 +1006,7 @@
       id: uid(), seasonId: meta.currentSeasonId, opponent: name, date: draft.date || today(), location: (draft.location || '').trim(),
       homeAway: draft.homeAway, rules: C.copyRules(meta.settings.rules), quarter: 1, status: 'live', events: [], seq: 0,
       onCourt: draft.starters.slice(), appeared: draft.starters.slice(), starters: draft.starters.slice(), roster: roster,
-      oppNums: [], created: Date.now(), publishedUrl: '', publishId: ''
+      oppNums: [], created: Date.now(), publishedUrl: '', publishId: '', subLog: true
     };
     games.push(g);
     saveGame(g);

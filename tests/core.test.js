@@ -44,6 +44,39 @@ test('charges taken', function () {
   assert.strictEqual(c.players.a.pf, 0);
 });
 
+test('plus/minus follows substitutions', function () {
+  var g = game([
+    ev(1, 'us', 'a', 'make', 2),          // a, b on: +2
+    ev(1, 'them', '4', 'make', 3),        // a, b on: -3
+    ev(1, 'us', 'b', 'sub', 'out'), ev(1, 'us', 'c', 'sub', 'in'),
+    ev(2, 'us', 'c', 'make', 3),          // a, c on: +3
+    ev(2, 'us', 'a', 'make', 1)           // a, c on: +1
+  ], 2);
+  g.starters = ['a', 'b'];
+  assert.strictEqual(SB.plusMinus(g), null, 'no subLog, no plus/minus');
+  g.subLog = true;
+  assert.deepStrictEqual(SB.plusMinus(g), { a: 3, b: -1, c: 4 });
+  assert.deepStrictEqual(SB.lineupAfter(g), ['a', 'c']);
+  // Subs don't create box-score lines or change the score.
+  var c = SB.computeGame(g);
+  assert.strictEqual(c.score.us, 6);
+  assert.deepStrictEqual(c.pm, { a: 3, b: -1, c: 4 });
+  assert.strictEqual(SB.fmtPm(3) + SB.fmtPm(-1) + SB.fmtPm(0) + SB.fmtPm(undefined), '+3-10—');
+});
+
+test('season game logs and plus/minus totals', function () {
+  var g1 = game([ev(1, 'us', 'a', 'make', 2), ev(1, 'them', '4', 'make', 2), ev(1, 'us', 'a', 'make', 3)], 4);
+  g1.id = 'g1'; g1.starters = ['a']; g1.subLog = true; g1.appeared = ['a']; g1.opponent = 'X';
+  var g2 = game([ev(1, 'us', 'a', 'make', 2)], 4);
+  g2.id = 'g2'; g2.appeared = ['a'];    // older game, no sub log
+  var s = SB.computeSeason([g1, g2], [{ id: 'a' }]).players.a;
+  assert.strictEqual(s.gp, 2);
+  assert.strictEqual(s.line.pts, 7);
+  assert.strictEqual(s.pm, 3);
+  assert.strictEqual(s.pmGp, 1);
+  assert.deepStrictEqual(s.games.map(function (x) { return [x.id, x.line.pts, x.pm]; }), [['g1', 5, 3], ['g2', 2, undefined]]);
+});
+
 test('percentages can be switched off', function () {
   assert.deepStrictEqual(SB.pctShown({}), { fg: true, tp: true, ft: true });
   assert.deepStrictEqual(SB.pctShown({ pct: { two: false } }), { fg: false, tp: true, ft: true });

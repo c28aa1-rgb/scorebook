@@ -14,7 +14,9 @@ Plain HTML/CSS/JS, no build step, works offline. All data lives on the tablet.
   foul, and timeouts left (tall pips = full, short pips = 30-second). Tap the timeouts to record one.
 - **Period button:** end the quarter, go to OT, go back to fix a mistake, or end the game.
 - **Undo** removes the last entry. **Play log** lets you remove any earlier entry.
-- **Subs:** tap players on/off the court. Fouled-out and ejected players can't go back in.
+- **Subs:** tap players on/off the court. Fouled-out and ejected players can't go back in. Subs are
+  recorded in the play log (that's how plus/minus is worked out); **Undo** skips over them, so fix a
+  wrong sub in the Subs sheet or remove it from the play log.
 - **CHG** records a charge taken by the selected player, then asks who on the other team was called for
   the offensive foul (tap their number, **No #**, **+ #** for a new number, or **Skip**).
 - **Technicals:** a player's card shows a red **1T** badge and turns amber after one technical; the second
@@ -32,6 +34,13 @@ runs, timeouts) and a running-score grid like the paper book.
 - **Names on reports:** jersey only / first name + initial / full name, per report or as a default in Settings.
 - **Shooting percentages:** in Settings, set 2s, 3s or free throws to N/A if you don't record their misses.
   FG% shows N/A if either 2s or 3s are off.
+
+**Plus/minus** (+/−) is our points minus theirs while each player was on court. It's counted for games
+started after subs were recorded (Nov 2026 onward); older games show —.
+
+**Season** (home screen): leaders in each category (top 3; percentages need at least 1 attempt per game
+and 5 in all), and the season stats table. Tap any player for their game-by-game log with totals and
+per-game averages; tap a game there to open its report.
 
 **Back up** from Settings after each game (saves a .json file to Downloads). Restore it from the same page.
 

@@ -45,6 +45,9 @@
 
     plan.forEach(function (step) {
       var q = step.q, on = step.lineup;
+      // Log substitutions so plus/minus works, as the live screen does.
+      game.onCourt.forEach(function (id) { if (on.indexOf(id) < 0) add('us', id, 'sub', 'out', q); });
+      on.forEach(function (id) { if (game.onCourt.indexOf(id) < 0) add('us', id, 'sub', 'in', q); });
       for (var i = 0; i < on.length; i++) if (game.appeared.indexOf(on[i]) < 0) game.appeared.push(on[i]);
       game.onCourt = on.slice();
       for (var n = 0; n < step.poss; n++) {
@@ -83,8 +86,8 @@
     return {
       id: id, seasonId: seasonId, opponent: opts.opponent, date: opts.date, location: opts.location,
       homeAway: opts.homeAway, rules: C.copyRules(rules), quarter: 1, status: 'live', events: [], seq: 0,
-      onCourt: [], appeared: [], starters: roster.slice(0, 5), roster: [], oppNums: opts.oppNums.slice(),
-      created: Date.now(), publishedUrl: '', publishId: '', sample: true
+      onCourt: roster.slice(0, 5), appeared: roster.slice(0, 5), starters: roster.slice(0, 5), roster: [], oppNums: opts.oppNums.slice(),
+      created: Date.now(), publishedUrl: '', publishId: '', sample: true, subLog: true
     };
   }
 

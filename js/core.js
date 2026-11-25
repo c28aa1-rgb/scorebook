@@ -7,7 +7,8 @@
  *                p: playerId (us) or jersey string (them, '' = unknown),
  *                t: type, v: value }
  * Types: 'make' (v 1|2|3), 'miss' (v 1|2|3), 'reb' (v 'o'|'d'), 'ast', 'stl',
- *        'blk', 'to', 'chg' (charge taken), 'foul' (v 'p'|'t'), 'timeout' (v 'full'|'short').
+ *        'blk', 'to', 'chg' (charge taken), 'foul' (v 'p'|'t'), 'timeout' (v 'full'|'short'),
+ *        'sub' (v 'in'|'out'; only in games with subLog: true, which start from game.starters).
  */
 (function (root) {
   'use strict';
@@ -115,6 +116,7 @@
         r.timeoutLog.push({ tm: e.tm, q: e.q, v: e.v });
         continue;
       }
+      if (e.t === 'sub') continue;
       if (e.tm === 'us') {
         line = r.players[e.p] || (r.players[e.p] = emptyLine());
       } else {
@@ -152,8 +154,40 @@
       us: r.currentFouls.them + 1 >= rules.bonusAt,
       them: r.currentFouls.us + 1 >= rules.bonusAt
     };
+    r.pm = plusMinus(game);
     return r;
   }
+
+  // Replays substitutions from the starters, calling each(event, onCourt) after every event.
+  function replayLineup(game, each) {
+    var on = (game.starters || []).slice();
+    (game.events || []).forEach(function (e) {
+      if (e.t === 'sub') {
+        var i = on.indexOf(e.p);
+        if (e.v === 'out' && i >= 0) on.splice(i, 1);
+        else if (e.v === 'in' && i < 0) on.push(e.p);
+      }
+      if (each) each(e, on);
+    });
+    return on;
+  }
+
+  function lineupAfter(game) { return replayLineup(game); }
+
+  // Plus/minus: our points minus theirs while each player was on court.
+  // Needs a game that logged its subs (subLog); null otherwise. Players who never played are absent.
+  function plusMinus(game) {
+    if (!game.subLog) return null;
+    var pm = {};
+    (game.starters || []).forEach(function (id) { pm[id] = 0; });
+    replayLineup(game, function (e, on) {
+      if (e.t === 'sub' && e.v === 'in' && pm[e.p] === undefined) pm[e.p] = 0;
+      if (e.t === 'make') on.forEach(function (id) { pm[id] = (pm[id] || 0) + (e.tm === 'us' ? e.v : -e.v); });
+    });
+    return pm;
+  }
+
+  function fmtPm(n) { return n === undefined || n === null ? '—' : (n > 0 ? '+' + n : String(n)); }
 
   // tf = technical fouls (already included in pf). 'warn' = one foul, or one technical, from leaving.
   function foulState(pf, rules, tf) {
@@ -217,12 +251,15 @@
   }
 
   /*
-   * Season totals per player across finished games.
+   * Season totals per player across finished games, plus each player's game-by-game lines.
    * games: [{ events, rules, quarter, roster? }]; players: [{id}]
+   * Per player: gp, line (totals), pm (plus/minus total), pmGp (games where it was tracked),
+   * games: [{ id, date, opponent, homeAway, us, them, line, pm }] in the order given.
    */
   function computeSeason(games, players) {
     var out = {}, team = { gp: 0, w: 0, l: 0, pf: 0, pa: 0 };
-    players.forEach(function (p) { out[p.id] = { gp: 0, line: emptyLine() }; });
+    function blank() { return { gp: 0, line: emptyLine(), pm: 0, pmGp: 0, games: [] }; }
+    players.forEach(function (p) { out[p.id] = blank(); });
     games.forEach(function (g) {
       var c = computeGame(g);
       team.gp++;
@@ -232,9 +269,13 @@
       (g.appeared || []).forEach(function (id) { played[id] = true; });
       for (var id in c.players) if (c.players.hasOwnProperty(id)) played[id] = true;
       for (id in played) {
-        if (!out[id]) out[id] = { gp: 0, line: emptyLine() };
-        out[id].gp++;
-        if (c.players[id]) addLines(out[id].line, c.players[id]);
+        if (!out[id]) out[id] = blank();
+        var o = out[id], line = c.players[id] || emptyLine(), pm = c.pm ? c.pm[id] : undefined;
+        o.gp++;
+        addLines(o.line, line);
+        if (pm !== undefined) { o.pm += pm; o.pmGp++; }
+        o.games.push({ id: g.id, date: g.date, opponent: g.opponent, homeAway: g.homeAway,
+          us: c.score.us, them: c.score.them, line: line, pm: pm });
       }
     });
     return { players: out, team: team };
@@ -251,6 +292,9 @@
     gameFlow: gameFlow,
     foulState: foulState,
     outReason: outReason,
+    lineupAfter: lineupAfter,
+    plusMinus: plusMinus,
+    fmtPm: fmtPm,
     pct: pct,
     fmtPct: fmtPct,
     pctShown: pctShown,

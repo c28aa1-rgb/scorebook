@@ -328,6 +328,21 @@ table.st td { text-align: right; padding: 0.4rem 0.45rem; border-bottom: 1px sol
 table.st .l { text-align: left; }
 table.st td.nm { font-family: var(--f-body); font-size: 0.9rem; }
 table.st td.b { font-weight: 700; }
+table.st tr.tap { cursor: pointer; }
+table.st tr.tap:active td { background: var(--accent-soft); }
+table.st tr.tot td { font-weight: 700; border-top: 2px solid var(--ledger); }
+
+.leaders { display: grid; grid-template-columns: repeat(auto-fill, minmax(13.5rem, 1fr)); gap: 0.6rem; }
+.ldr { background: var(--card); border: 2px solid var(--rule); border-radius: 0.5rem; padding: 0.55rem 0.7rem 0.4rem; }
+.ldr h3 { margin: 0 0 0.3rem; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ledger); }
+.ldr h3 small { color: var(--ink2); letter-spacing: 0.05em; font-weight: 400; }
+.ldr ol { list-style: none; margin: 0; padding: 0; }
+.ldr li button { display: flex; align-items: center; gap: 0.5rem; width: 100%; min-height: 2.2rem; font-size: 0.9rem; }
+.ldr li + li button { border-top: 1px solid var(--rule); }
+.ldr li:first-child button { font-weight: 700; }
+.ldr .jr { font-family: var(--f-num); font-weight: 700; width: 1.7rem; text-align: center; color: var(--ink2); }
+.ldr li b { margin-left: auto; font-family: var(--f-num); font-size: 1.15rem; }
+.ldr .none { margin: 0.2rem 0 0.4rem; color: var(--ink2); }
 
 .form { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; }
 .fld { display: flex; flex-direction: column; gap: 0.3rem; flex: 1 1 12rem; min-width: 0; }

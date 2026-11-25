@@ -159,25 +159,25 @@
   }
 
   function ourBox(game, meta, c, names) {
-    var rows = boxPlayers(game, meta, c), t = c.team.us;
+    var rows = boxPlayers(game, meta, c), t = c.team.us, pm = c.pm;
     var h = ['<div class="tw"><table><thead><tr><th class="l">#</th><th class="l">Player</th>',
       '<th class="b">PTS</th><th>FG</th><th>3P</th><th>FT</th><th>OR</th><th>DR</th><th>REB</th>',
-      '<th>AST</th><th>STL</th><th>BLK</th><th>CHG</th><th>TO</th><th>PF</th></tr></thead><tbody>'];
+      '<th>AST</th><th>STL</th><th>BLK</th><th>CHG</th><th>TO</th><th>PF</th>' + (pm ? '<th>+/−</th>' : '') + '</tr></thead><tbody>'];
     rows.forEach(function (r) {
-      var l = r.line;
+      var l = r.line, pmCell = pm ? '<td>' + C.fmtPm(pm[r.id]) + '</td>' : '';
       h.push('<tr><td class="jr">' + esc(r.num) + '</td><td class="nm">' + esc(playerName(r.p, names)) +
         '</td><td class="b">' + l.pts + '</td><td>' + ma(l.fgm, l.fga) + '</td><td>' + ma(l.tpm, l.tpa) +
         '</td><td>' + ma(l.ftm, l.fta) + '</td><td>' + l.oreb + '</td><td>' + l.dreb + '</td><td>' +
         (l.oreb + l.dreb) + '</td><td>' + l.ast + '</td><td>' + l.stl + '</td><td>' + l.blk +
-        '</td><td>' + (l.chg || 0) + '</td><td>' + l.to + '</td>' + pfCell(l, c.rules) + '</tr>');
+        '</td><td>' + (l.chg || 0) + '</td><td>' + l.to + '</td>' + pfCell(l, c.rules) + pmCell + '</tr>');
     });
     h.push('<tr class="tot"><td class="l" colspan="2">Team</td><td>' + t.pts + '</td><td>' + ma(t.fgm, t.fga) +
       '</td><td>' + ma(t.tpm, t.tpa) + '</td><td>' + ma(t.ftm, t.fta) + '</td><td>' + t.oreb + '</td><td>' +
       t.dreb + '</td><td>' + (t.oreb + t.dreb) + '</td><td>' + t.ast + '</td><td>' + t.stl + '</td><td>' +
-      t.blk + '</td><td>' + (t.chg || 0) + '</td><td>' + t.to + '</td><td>' + t.pf + (t.tf ? ' (' + t.tf + 'T)' : '') + '</td></tr>');
+      t.blk + '</td><td>' + (t.chg || 0) + '</td><td>' + t.to + '</td><td>' + t.pf + (t.tf ? ' (' + t.tf + 'T)' : '') + '</td>' + (pm ? '<td></td>' : '') + '</tr>');
     var on = C.pctShown(meta.settings);
     h.push('<tr class="pct"><td colspan="3"></td><td>' + pctText(on.fg, t.fgm, t.fga) + '</td><td>' +
-      pctText(on.tp, t.tpm, t.tpa) + '</td><td>' + pctText(on.ft, t.ftm, t.fta) + '</td><td colspan="9"></td></tr>');
+      pctText(on.tp, t.tpm, t.tpa) + '</td><td>' + pctText(on.ft, t.ftm, t.fta) + '</td><td colspan="' + (pm ? 10 : 9) + '"></td></tr>');
     h.push('</tbody></table></div>');
     return h.join('');
   }
