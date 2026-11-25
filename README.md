@@ -11,7 +11,8 @@ Plain HTML/CSS/JS, no build step, works offline. All data lives on the tablet.
 - **Opponent:** switch to their tab. Tap a jersey number (or **+ Number** to add one), then +1/+2/+3 or
   FOUL. With no number picked, it's logged to their team.
 - **Top bar:** score, team fouls this quarter (slashed boxes), **BONUS** when that team shoots on the next
-  foul, and timeouts left (tall pips = full, short pips = 30-second). Tap the timeouts to record one.
+  foul, and timeouts left (tall pips = full, short pips = 30-second). Tap the timeouts to record one; a
+  countdown (1:00 or 0:30) runs in the bottom bar and turns red at zero. Tap it to end early.
 - **Period button:** end the quarter, go to OT, go back to fix a mistake, or end the game.
 - **Undo** removes the last entry. **Play log** lets you remove any earlier entry.
 - **Subs:** tap players on/off the court. Fouled-out and ejected players can't go back in. Subs are

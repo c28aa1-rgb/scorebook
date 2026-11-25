@@ -465,7 +465,8 @@
     var last = g.events[g.events.length - 1];
     h.push('<footer class="lv-bot"><button class="btn" data-a="drawer" data-x="bench">Subs</button>' +
       '<button class="btn" data-a="drawer" data-x="log">Play log</button>' +
-      '<div class="last">' + (last ? 'Last: <b>' + esc(describe(last, g)) + '</b>' : 'Tap a player, then what they did.') + '</div>' +
+      (ui.timer && ui.timer.game === g.id ? timerChip(g) :
+        '<div class="last">' + (last ? 'Last: <b>' + esc(describe(last, g)) + '</b>' : 'Tap a player, then what they did.') + '</div>') +
       '<button class="btn" data-a="go" data-x="#report/' + g.id + '">Box score</button></footer>');
     h.push('</div>');
     if (ui.drawer) h.push(drawer(g, c));
@@ -870,9 +871,41 @@
     render();
   };
 
+  // Timeout countdown, shown in the live footer in place of the last-play line.
+  // It updates only its own text each tick, so the screen isn't redrawn every second.
+  var TIMEOUT_SECS = { full: 60, short: 30 }, timerTick = null;
+  function startTimer(g, tm, v, seq) {
+    ui.timer = { game: g.id, tm: tm, v: v, seq: seq, end: Date.now() + TIMEOUT_SECS[v] * 1000 };
+    clearInterval(timerTick);
+    timerTick = setInterval(tickTimer, 250);
+  }
+  function stopTimer() { ui.timer = null; clearInterval(timerTick); timerTick = null; }
+  function timerLeft() { return Math.max(0, Math.ceil((ui.timer.end - Date.now()) / 1000)); }
+  function fmtClock(s) { return Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60); }
+  function tickTimer() {
+    var t = ui.timer;
+    if (!t) return stopTimer();
+    var left = timerLeft(), el = document.getElementById('to-clock');
+    if (el) el.textContent = left ? fmtClock(left) : '0:00';
+    if (left || t.done) return;
+    // Time's up: turn the chip red, buzz the tablet if it can, and clear it after a few seconds.
+    t.done = true;
+    if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+    if (route.name === 'game') render();
+    setTimeout(function () { if (ui.timer === t) { stopTimer(); if (route.name === 'game') render(); } }, 8000);
+  }
+  function timerChip(g) {
+    var t = ui.timer, left = timerLeft();
+    return '<button class="to-clock' + (t.done ? ' done' : '') + '" data-a="endTimer">' +
+      '<span class="who">' + esc(t.tm === 'us' ? meta.team.name : g.opponent) + ' · ' + (t.v === 'short' ? '30-second' : 'full') + ' timeout</span>' +
+      '<b id="to-clock" class="num">' + fmtClock(left) + '</b><small>' + (t.done ? 'Time’s up' : 'Tap to end') + '</small></button>';
+  }
+  actions.endTimer = function () { stopTimer(); render(); };
+
   actions.timeout = function (x) {
     var g = gameById(route.id), p = x.split(':');
-    addEvent(g, p[0], '', 'timeout', p[1]);
+    var e = addEvent(g, p[0], '', 'timeout', p[1]);
+    startTimer(g, p[0], p[1], e.s);
     ui.drawer = null;
     var c = C.computeGame(g), left = c.timeoutsLeft[p[0]];
     toast((p[0] === 'us' ? meta.team.name : g.opponent) + ' timeout. ' + left.full + ' full + ' + left.short + ' short left.');
@@ -897,6 +930,7 @@
     var e = g.events[i];
     var gone = linkedSeqs(g, e.s), removed = g.events.filter(function (x) { return gone.indexOf(x.s) >= 0; });
     g.events = g.events.filter(function (x) { return gone.indexOf(x.s) < 0; });
+    if (ui.timer && gone.indexOf(ui.timer.seq) >= 0) stopTimer();
     saveGame(g);
     ui.prompt = null;
     toast('Undid: ' + removed.map(function (x) { return describe(x, g); }).join(' + '));
@@ -908,6 +942,7 @@
     if (ui.armed !== 'ev' + s) { ui.armed = 'ev' + s; return render(); }
     var gone = linkedSeqs(g, s);
     g.events = g.events.filter(function (e) { return gone.indexOf(e.s) < 0; });
+    if (ui.timer && ui.timer.game === g.id && gone.indexOf(ui.timer.seq) >= 0) stopTimer();
     // Removing a logged sub changes who is on court now.
     if (g.subLog) g.onCourt = C.lineupAfter(g);
     ui.armed = null;
