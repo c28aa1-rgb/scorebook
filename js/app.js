@@ -81,12 +81,41 @@
     s.setProperty('--accent-soft', 'rgb(' + mix(r) + ',' + mix(g) + ',' + mix(b) + ')');
   }
 
-  // Live screen is a 60 x 37.5 rem canvas: scale the root font so it fills the window.
+  // The live screen is a fixed canvas scaled to fill the window by setting the root font size:
+  // 80 x 50 rem with a plays panel on wide screens (Fire HD 10: 1280 x 800), else the
+  // compact 60 x 37.5 rem layout (Fire HD 8: 960 x 600, smaller iPads).
+  var WIDE_MIN = 1100;
   function fitScale() {
-    var w = window.innerWidth, fs = route.name === 'game'
-      ? Math.min(w / 60, window.innerHeight / 37.5)
-      : Math.min(18, Math.max(14, w / 60));
+    var w = window.innerWidth, h = window.innerHeight, wide = w >= WIDE_MIN, fs;
+    if (route.name === 'game') fs = wide ? Math.min(w / 80, h / 50) : Math.min(w / 60, h / 37.5);
+    else fs = Math.min(18, Math.max(14, w / 60));
     document.documentElement.style.fontSize = Math.max(10, fs).toFixed(2) + 'px';
+    if (ui.wide !== wide) {
+      ui.wide = wide;
+      if (route.name === 'game' && meta) render();
+    }
+  }
+
+  // Keep the screen on while scoring (Screen Wake Lock API; needs https). The browser drops
+  // the lock when the tab is hidden, so it's requested again when the app comes back.
+  var wakeLock = null;
+  function wantWake() {
+    if (route.name === 'game') return true;
+    var g = route.name === 'report' && gameById(route.id);
+    return !!(g && g.status !== 'final');
+  }
+  function syncWake() {
+    if (!navigator.wakeLock) return;
+    if (wantWake() && !wakeLock && document.visibilityState === 'visible') {
+      wakeLock = 'pending';
+      navigator.wakeLock.request('screen').then(function (l) {
+        wakeLock = l;
+        l.addEventListener('release', function () { if (wakeLock === l) wakeLock = null; });
+        if (!wantWake()) syncWake();
+      })['catch'](function () { wakeLock = null; });
+    } else if (!wantWake() && wakeLock && wakeLock !== 'pending') {
+      var l = wakeLock; wakeLock = null; l.release()['catch'](function () {});
+    }
   }
 
   // Full screen. Browsers only allow it from a tap, so it is entered from click handlers.
@@ -142,6 +171,7 @@
           applyTheme();
           window.addEventListener('hashchange', onRoute);
           window.addEventListener('resize', fitScale);
+          document.addEventListener('visibilitychange', syncWake);
           document.addEventListener('fullscreenchange', onFullscreen);
           document.addEventListener('webkitfullscreenchange', onFullscreen);
           onRoute();
@@ -165,6 +195,7 @@
     }
     fitScale();
     render();
+    syncWake();
     window.scrollTo(0, 0);
   }
 
@@ -442,8 +473,8 @@
 
   // ----- Live game -----
   screens.game = function () {
-    var g = gameById(route.id), c = C.computeGame(g), r = c.rules;
-    var h = ['<div class="lv">'];
+    var g = gameById(route.id), c = C.computeGame(g), r = c.rules, wide = ui.wide;
+    var h = ['<div class="lv' + (wide ? ' wide' : '') + '">'];
     h.push('<header class="lv-top">');
     h.push('<button class="lv-home" data-a="go" data-x="#home"><span class="ic">☰</span>Games</button>');
     if (fsAvailable()) h.push('<button class="lv-fs" data-a="fullscreen"><span class="fs-ic"></span>' + (fsActive() ? 'Exit' : 'Full') + '</button>');
@@ -457,10 +488,17 @@
     h.push('<div class="tabs"><button data-a="side" data-x="us" class="' + (ui.side === 'us' ? 'on' : '') + '">' + esc(meta.team.name) +
       '</button><button data-a="side" data-x="them" class="' + (ui.side === 'them' ? 'on' : '') + '">' + esc(g.opponent) + '</button></div>');
     h.push(ui.side === 'us' ? ourCards(g, c) : oppChips(g, c));
+    if (wide) h.push('<button class="btn lv-subs" data-a="drawer" data-x="bench">Subs</button>');
     h.push('</section><section class="lv-pad">');
     h.push(padHead(g, c));
     h.push(ui.side === 'us' ? ourPad() : oppPad());
-    h.push('</section></main>');
+    h.push('</section>');
+    if (wide) {
+      h.push(playsPanel(g, c) + '</main></div>');
+      if (ui.drawer) h.push(drawer(g, c));
+      return h.join('');
+    }
+    h.push('</main>');
 
     var last = g.events[g.events.length - 1];
     h.push('<footer class="lv-bot"><button class="btn" data-a="drawer" data-x="bench">Subs</button>' +
@@ -472,6 +510,26 @@
     if (ui.drawer) h.push(drawer(g, c));
     return h.join('');
   };
+
+  // Wide layout only: recent plays beside the pad, newest first, with the running score.
+  // Each play can be removed with two taps. The timeout countdown sits on top.
+  function playsPanel(g, c) {
+    var h = ['<aside class="plays">'], tot = { us: 0, them: 0 }, score = {};
+    if (ui.timer && ui.timer.game === g.id) h.push(timerChip(g));
+    g.events.forEach(function (e) { if (e.t === 'make') tot[e.tm] += e.v; score[e.s] = tot.us + '–' + tot.them; });
+    h.push('<div class="plays-hd"><span>Plays</span><small class="num">' + g.events.length + '</small></div><ol class="plays-list">');
+    if (!g.events.length) h.push('<li class="none">Plays show here as you enter them.</li>');
+    g.events.slice(-60).reverse().forEach(function (e) {
+      var armed = ui.armed === 'ev' + e.s;
+      var cls = e.t === 'make' ? 'pts ' + e.tm : e.t === 'sub' ? 'dim' : e.t === 'foul' ? 'foul' : '';
+      h.push('<li class="' + cls + '"><span class="q num">' + C.periodLabel(e.q, c.rules) + '</span><span class="d">' + esc(describe(e, g)) +
+        '</span><span class="sc num">' + score[e.s] + '</span><button class="x' + (armed ? ' armed' : '') + '" data-a="rmEvent" data-x="' + e.s + '">' +
+        (armed ? 'Remove' : '×') + '</button></li>');
+    });
+    h.push('</ol><div class="plays-ft"><button class="btn" data-a="drawer" data-x="log">Full log</button>' +
+      '<button class="btn" data-a="go" data-x="#report/' + g.id + '">Box score</button></div></aside>');
+    return h.join('');
+  }
 
   function teamBlock(tm, name, c) {
     var fouls = c.currentFouls[tm], r = c.rules, left = c.timeoutsLeft[tm], h = [];

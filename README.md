@@ -1,7 +1,13 @@
 # Dalton Scorebook
 
-A digital basketball scorebook for one team, built for a 2017 Fire HD 8 (1280×800, Android 5.1).
-Plain HTML/CSS/JS, no build step, works offline. All data lives on the tablet.
+A digital basketball scorebook for one team, built for the Fire HD 10 (2021, 1920×1200 → 1280×800 in
+Chrome, landscape). Also works on the 2017 Fire HD 8 and on iPads. Plain HTML/CSS/JS, no build step, works
+offline. All data lives on the tablet.
+
+On wide screens (1100 CSS px and up, e.g. the Fire HD 10) the live screen has three columns: player cards,
+the stat pad, and a **Plays** panel with recent plays, the running score and the timeout countdown (tap ×
+twice to remove a play). Narrower screens use the compact two-column layout with a bottom bar. The screen
+stays awake while a game is open (needs the https address).
 
 ## Using it during a game
 
