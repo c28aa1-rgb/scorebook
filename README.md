@@ -37,6 +37,8 @@ runs, timeouts) and a running-score grid like the paper book.
 - **Email** opens the mail app with the score, scoring and team stats as text (plus the link if published).
 - **Publish link** uploads the report to a private, unlisted link (needs the publishing worker below).
 - **Save file** saves a single HTML file you can attach to an email or open anywhere.
+- **Share file** (Android and iPad, https address only) opens the tablet's share menu with the report
+  file attached and the score summary as the message: Bluetooth (no Wi-Fi needed), Gmail, Drive, etc.
 - **Print** prints on Letter paper. Best done from a laptop by opening the published link or saved file.
 - **Names on reports:** jersey only / first name + initial / full name, per report or as a default in Settings.
 - **Shooting percentages:** in Settings, set 2s, 3s or free throws to N/A if you don't record their misses.

@@ -138,6 +138,12 @@
   }
   function autoFullscreen() { return meta.settings.autoFull !== '0'; }
 
+  // Web Share with files (Chrome on Android, Safari on iPad; needs https). Checked once for the button.
+  function canShareFiles(files) {
+    try { return !!(navigator.canShare && navigator.canShare({ files: files })); } catch (e) { return false; }
+  }
+  var SHARE_FILES = !!window.File && canShareFiles([new File(['x'], 'report.html', { type: 'text/html' })]);
+
   function download(name, text, type) {
     var blob = new Blob([text], { type: type });
     var url = URL.createObjectURL(blob), a = document.createElement('a');
@@ -751,6 +757,7 @@
     else h.push('<button class="btn sm ghost" data-a="reopen">Reopen game</button>');
     h.push('<button class="btn sm" data-a="print">Print</button>');
     h.push('<button class="btn sm" data-a="dlReport">Save file</button>');
+    if (SHARE_FILES) h.push('<button class="btn sm" data-a="shareReport">Share file</button>');
     h.push('<button class="btn sm" data-a="publish">' + (g.publishedUrl ? 'Update link' : 'Publish link') + '</button>');
     h.push('<button class="btn sm pri" data-a="email">Email</button>');
     h.push('</div>');
@@ -1164,10 +1171,23 @@
   // Report
   actions.repNames = function (x) { ui.reportNames = x; render(); };
   actions.print = function () { window.print(); };
+  function reportFileName(g) { return slug(meta.team.short || meta.team.name) + '-vs-' + slug(g.opponent) + '-' + g.date + '.html'; }
+
   actions.dlReport = function () {
     var g = gameById(route.id), names = ui.reportNames || meta.settings.names;
-    download(slug(meta.team.short || meta.team.name) + '-vs-' + slug(g.opponent) + '-' + g.date + '.html', R.standalone(g, meta, { names: names }), 'text/html');
+    download(reportFileName(g), R.standalone(g, meta, { names: names }), 'text/html');
     toast('Report file saved to Downloads.');
+  };
+
+  // Sends the report file through the tablet's share menu (Bluetooth, Gmail, Drive, …), which
+  // works without Wi-Fi for Bluetooth. The email-style summary goes along as the message text.
+  actions.shareReport = function () {
+    var g = gameById(route.id), names = ui.reportNames || meta.settings.names;
+    var file = new File([R.standalone(g, meta, { names: names })], reportFileName(g), { type: 'text/html' });
+    if (!canShareFiles([file])) { toast('This browser can’t share files. Use Save file instead.'); return; }
+    navigator.share({ files: [file], title: R.title(g, meta), text: R.plainText(g, meta, { names: names, url: g.publishedUrl }) })['catch'](function (err) {
+      if (err && err.name !== 'AbortError') toast('Couldn’t share the file (' + err.name + '). Use Save file instead.');
+    });
   };
   actions.email = function () {
     var g = gameById(route.id), names = ui.reportNames || meta.settings.names;
