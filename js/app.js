@@ -200,7 +200,7 @@
     var d;
     if (e.t === 'make' || e.t === 'miss') d = what[e.t][e.v];
     else if (e.t === 'reb') d = e.v === 'o' ? 'offensive rebound' : 'defensive rebound';
-    else if (e.t === 'foul') d = e.v === 't' ? 'technical foul' : 'foul';
+    else if (e.t === 'foul') d = e.v === 't' ? 'technical foul' : e.of ? 'offensive foul' : 'foul';
     else if (e.t === 'timeout') d = e.v === 'short' ? '30-second timeout' : 'full timeout';
     else d = { ast: 'assist', stl: 'steal', blk: 'block', to: 'turnover', chg: 'took a charge' }[e.t] || e.t;
     return who + ' — ' + d;
@@ -709,7 +709,7 @@
     ui.flash = ui.sel;
     if (t === 'make' && v > 1) ui.prompt = { k: 'ast', p: ui.sel };
     else if (t === 'miss') ui.prompt = { k: 'reb', p: ui.sel };
-    else if (t === 'chg') ui.drawer = 'chgFoul';
+    else if (t === 'chg') { ui.drawer = 'chgFoul'; ui.chgSeq = e.s; }
     if (t === 'foul') {
       var after = C.computeGame(g), p = player(ui.sel);
       var notes = [foulNotice('#' + p.num + ' ' + shortName(p), after.players[ui.sel], after.rules, v === 't', true)];
@@ -737,8 +737,10 @@
 
   // Live: opponent
   // Records a foul on an opponent ('' = no number) and shows any warning it causes.
-  function oppFoul(g, num, v, confirm) {
-    addEvent(g, 'them', num, 'foul', v);
+  // link: seq of the charge this offensive foul came from, so undo removes the pair together.
+  function oppFoul(g, num, v, confirm, link) {
+    var e = addEvent(g, 'them', num, 'foul', v);
+    if (link) { e.of = link; saveGame(g); }
     var c = C.computeGame(g);
     var note = num ? foulNotice(g.opponent + ' #' + num, c.opp[num], c.rules, v === 't') : '';
     if (confirm) note = confirm + (note ? ' ' + note : '');
@@ -770,7 +772,8 @@
     if (ui.kpFor === 'chg') {
       // From the charge sheet: record the foul and stay on our side.
       ui.kpFor = null; ui.drawer = null;
-      oppFoul(g, ui.kp, 'p', chgConfirm(g, ui.kp));
+      oppFoul(g, ui.kp, 'p', chgConfirm(g, ui.kp), ui.chgSeq);
+      ui.chgSeq = null;
       ui.kp = '';
       return render();
     }
@@ -788,19 +791,32 @@
     render();
   };
 
+  // A charge and the offensive foul it drew are one play: removing either removes both.
+  function linkedSeqs(g, s) {
+    var out = [s];
+    g.events.forEach(function (e) {
+      if (e.s === s && e.of) out.push(e.of);
+      if (e.of === s) out.push(e.s);
+    });
+    return out;
+  }
+
   actions.undo = function () {
-    var g = gameById(route.id), e = g.events.pop();
+    var g = gameById(route.id), e = g.events[g.events.length - 1];
     if (!e) return;
+    var gone = linkedSeqs(g, e.s), removed = g.events.filter(function (x) { return gone.indexOf(x.s) >= 0; });
+    g.events = g.events.filter(function (x) { return gone.indexOf(x.s) < 0; });
     saveGame(g);
     ui.prompt = null;
-    toast('Undid: ' + describe(e, g));
+    toast('Undid: ' + removed.map(function (x) { return describe(x, g); }).join(' + '));
     render();
   };
 
   actions.rmEvent = function (x) {
     var g = gameById(route.id), s = parseInt(x, 10);
     if (ui.armed !== 'ev' + s) { ui.armed = 'ev' + s; return render(); }
-    g.events = g.events.filter(function (e) { return e.s !== s; });
+    var gone = linkedSeqs(g, s);
+    g.events = g.events.filter(function (e) { return gone.indexOf(e.s) < 0; });
     ui.armed = null;
     saveGame(g);
     render();
@@ -861,7 +877,8 @@
   actions.chgFoul = function (x) {
     var g = gameById(route.id);
     ui.drawer = null;
-    oppFoul(g, x, 'p', chgConfirm(g, x));
+    oppFoul(g, x, 'p', chgConfirm(g, x), ui.chgSeq);
+    ui.chgSeq = null;
     render();
   };
 
