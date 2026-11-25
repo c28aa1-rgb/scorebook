@@ -82,9 +82,9 @@
   }
 
   // The live screen is a fixed canvas scaled to fill the window by setting the root font size:
-  // 80 x 50 rem with both teams shown on wide screens (Fire HD 10: 1280 x 800), else the
-  // compact 60 x 37.5 rem layout (Fire HD 8: 960 x 600, smaller iPads).
-  var WIDE_MIN = 1100;
+  // 80 x 50 rem with both teams shown on wide screens (Fire HD 10: 1280 x 800, iPads in
+  // landscape), else the compact 60 x 37.5 rem layout (Fire HD 8: 960 x 600, portrait).
+  var WIDE_MIN = 1024;   // every iPad in landscape; the Fire HD 8 (960) stays compact
   function fitScale() {
     var w = window.innerWidth, h = window.innerHeight, wide = w >= WIDE_MIN, fs;
     if (route.name === 'game') fs = wide ? Math.min(w / 80, h / 50) : Math.min(w / 60, h / 37.5);
@@ -155,6 +155,16 @@
     try { quiet(document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen()); } catch (e) {}
   }
   function autoFullscreen() { return meta.settings.autoFull !== '0'; }
+
+  // App version: the offline copy's name, asked from the service worker (shown in Settings).
+  var swReg = null, swVersion = '';
+  function askVersion() {
+    var ctl = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!ctl || !window.MessageChannel) return;
+    var ch = new MessageChannel();
+    ch.port1.onmessage = function (e) { swVersion = e.data; if (route.name === 'settings') render(); };
+    ctl.postMessage('version', [ch.port2]);
+  }
 
   // Web Share with files (Chrome on Android, Safari on iPad; needs https). Checked once for the button.
   function canShareFiles(files) {
@@ -853,6 +863,11 @@
       '<label class="btn ghost" for="imp">Restore from backup…</label><input id="imp" type="file" accept=".json,application/json" class="sr" data-import="1"></div>' +
       (DB.usingFallback() ? '<p class="note">Note: this browser is using basic storage (localStorage). Keep backups.</p>' : ''));
 
+    h.push('<h2>App version</h2><p class="note">This tablet is running <b>' +
+      esc(swVersion || (location.protocol === 'https:' ? 'version not known yet' : 'the local test copy')) +
+      '</b>. New versions install by themselves when the tablet is online; this checks right away.</p>' +
+      '<div class="form"><button class="btn" data-a="checkUpdate">Check for updates</button></div>');
+
     var hasSample = games.some(function (g) { return g.sample; }) || meta.players.some(function (p) { return p.sample; });
     h.push('<h2>Practice</h2><p class="note">Sample games add a demo roster (if yours is empty), one finished game and one game in progress to practice on.</p>' +
       '<div class="form"><button class="btn" data-a="loadSample">Load sample games</button>' +
@@ -1193,6 +1208,16 @@
     toast('Sample data removed.');
     render();
   };
+  actions.checkUpdate = function () {
+    if (!swReg) { toast('Updates only apply to the https address, where they’re checked automatically.'); return; }
+    ui.reloadOnUpdate = true;
+    toast('Checking for updates…');
+    swReg.update().then(function () {
+      // If a new version was found, it's installing and the page reloads when it takes over.
+      if (!swReg.installing && !swReg.waiting) { ui.reloadOnUpdate = false; toast('You have the latest version.'); }
+    })['catch'](function () { ui.reloadOnUpdate = false; toast('Couldn’t check for updates. Is the tablet online?'); });
+  };
+
   actions.exportAll = function () {
     var data = { app: 'scorebook', version: 1, exported: new Date().toISOString(), meta: meta, games: games };
     download('scorebook-backup-' + today() + '.json', JSON.stringify(data), 'application/json');
@@ -1357,8 +1382,24 @@
   }
 
   // Offline support. Skipped on localhost so edits show up immediately while developing.
+  // Checks for a new version on launch and whenever the app comes back to the screen (home-screen
+  // apps on iPad resume without reloading). A new version takes over at once (skipWaiting in sw.js).
   if ('serviceWorker' in navigator && location.protocol === 'https:') {
-    navigator.serviceWorker.register('sw.js')['catch'](function () {});
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      swReg = reg;
+      reg.update()['catch'](function () {});
+    })['catch'](function () {});
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (ui.reloadOnUpdate) { location.reload(); return; }
+      if (hadController) toast('A new version is ready. Reload the page to use it.', 6000);
+      hadController = true;
+      askVersion();
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (swReg && document.visibilityState === 'visible') swReg.update()['catch'](function () {});
+    });
+    askVersion();
   }
 
   boot();

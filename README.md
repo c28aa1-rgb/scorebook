@@ -4,7 +4,7 @@ A digital basketball scorebook for one team, built for the Fire HD 10 (2021, 192
 Chrome, landscape). Also works on the 2017 Fire HD 8 and on iPads. Plain HTML/CSS/JS, no build step, works
 offline. All data lives on the tablet.
 
-On wide screens (1100 CSS px and up, e.g. the Fire HD 10) the live screen shows both teams at once: your
+On wide screens (1024 CSS px and up: the Fire HD 10 and any iPad in landscape) the live screen shows both teams at once: your
 five player cards, the opponent's jersey numbers beside them, then the stat pad. Tapping a player on either
 side switches the pad to that team (tap a team's name to switch without picking anyone). Narrower screens
 use tabs to switch between teams.
@@ -100,4 +100,6 @@ node tests/core.test.js    # stat and rules tests
 node tools/make-icons.js   # regenerate icons
 ```
 
-When you change any app file, bump `VERSION` in `sw.js` so tablets pick up the update.
+When you change any app file, bump `VERSION` in `sw.js` so tablets pick up the update. Tablets check for a
+new version on launch and whenever the app comes back on screen; Settings → App version shows the running
+version and has **Check for updates**.
