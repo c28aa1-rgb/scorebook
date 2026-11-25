@@ -20,10 +20,12 @@
     foulOut: 5,
     techOut: 2,            // technical fouls that eject a player (NFHS); 0 = no limit
     bonusAt: 5,           // team foul number that starts free throws
-    bonusReset: 'quarter', // 'quarter' | 'half'
-    otFoulsCarry: true,    // 4th-quarter team fouls carry into OT (NFHS)
+    doubleBonusAt: 0,      // team foul number for the double bonus (2 shots); 0 = none
+    bonusReset: 'quarter', // team fouls reset: 'quarter' (each period) | 'half' | 'game' (never)
+    otFoulsCarry: true,    // last period's team fouls carry into OT (NFHS)
     timeoutsFull: 3,
     timeoutsShort: 2,
+    timeoutsReset: 'game', // timeout allotment is per 'game' or per 'half'
     otMinutes: 4,
     otTimeoutsFull: 1,
     otTimeoutsShort: 0
@@ -36,15 +38,17 @@
     return out;
   }
 
+  // Q1–Q4 for quarters, H1–H2 for halves, P1… for anything else; OT, OT2… after that.
   function periodLabel(q, rules) {
     var n = (rules || DEFAULT_RULES).periods;
-    if (q <= n) return 'Q' + q;
+    if (q <= n) return (n === 4 ? 'Q' : n === 2 ? 'H' : 'P') + q;
     return q - n === 1 ? 'OT' : 'OT' + (q - n);
   }
 
   // Which foul "bucket" a period belongs to for bonus counting.
   function foulBucket(q, rules) {
-    if (q > rules.periods) return rules.otFoulsCarry ? 'p' + rules.periods : 'p' + q;
+    if (q > rules.periods) return rules.otFoulsCarry ? foulBucket(rules.periods, rules) : 'p' + q;
+    if (rules.bonusReset === 'game') return 'g';
     if (rules.bonusReset === 'half') return q <= rules.periods / 2 ? 'h1' : 'h2';
     return 'p' + q;
   }
@@ -137,12 +141,21 @@
     r.periods = r.byPeriod.us.length;
 
     // Timeouts available = regulation + per-OT allotment for OT periods reached.
+    // With timeouts per half, only the current half's timeouts count, and OT adds to the second half's.
     var ots = Math.max(0, r.periods - rules.periods, cur - rules.periods);
+    var byHalf = rules.timeoutsReset === 'half' && rules.periods >= 2, mid = Math.floor(rules.periods / 2);
+    var from = byHalf && cur > mid ? mid + 1 : 1, to = byHalf && cur <= mid ? mid : Infinity;
+    r.timeoutsAllot = {
+      full: rules.timeoutsFull + (to === Infinity ? ots * rules.otTimeoutsFull : 0),
+      short: rules.timeoutsShort + (to === Infinity ? ots * rules.otTimeoutsShort : 0)
+    };
     r.timeoutsLeft = {};
     ['us', 'them'].forEach(function (tm) {
+      var used = { full: 0, short: 0 };
+      r.timeoutLog.forEach(function (t) { if (t.tm === tm && t.q >= from && t.q <= to) used[t.v === 'short' ? 'short' : 'full']++; });
       r.timeoutsLeft[tm] = {
-        full: Math.max(0, rules.timeoutsFull + ots * rules.otTimeoutsFull - r.timeoutsUsed[tm].full),
-        short: Math.max(0, rules.timeoutsShort + ots * rules.otTimeoutsShort - r.timeoutsUsed[tm].short)
+        full: Math.max(0, r.timeoutsAllot.full - used.full),
+        short: Math.max(0, r.timeoutsAllot.short - used.short)
       };
     });
 
@@ -158,6 +171,11 @@
     r.inBonus = {
       us: r.currentFouls.them >= rules.bonusAt,
       them: r.currentFouls.us >= rules.bonusAt
+    };
+    var dbl = rules.doubleBonusAt;
+    r.inDoubleBonus = {
+      us: dbl > 0 && r.currentFouls.them >= dbl,
+      them: dbl > 0 && r.currentFouls.us >= dbl
     };
     r.pm = plusMinus(game);
     return r;

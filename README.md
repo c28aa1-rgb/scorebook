@@ -65,7 +65,26 @@ per-game averages; tap a game there to open its report.
 
 **Back up** from Settings after each game (saves a .json file to Downloads). Restore it from the same page.
 
+## Schedule
+
+Home → **Schedule**: upload a CSV (Google Sheets: File → Download → CSV; Excel: Save As → CSV) or paste the
+schedule, one game per line, then check the preview and add. Columns can be in any order (date, opponent,
+home/away, location, time), with or without a header row; lines like "Tue Dec 2 @ Trinity 4:30 PM" or
+"12/5 vs Riverdale" work too. Dates without a year are placed in the current season. Games already on the
+schedule are skipped. You can also add games one at a time.
+
+The next three games show under **Up next** on the home screen; **Start game** opens New game with the
+opponent, date, place and home/away filled in, and the schedule then shows Resume or the final score.
+
+On New game you can also type the opponent's jersey numbers so their column is ready at tip-off.
+
 ## Rules
+
+Settings → **Rules for new games** sets the defaults: periods (4 quarters or 2 halves, shown as Q1–Q4 or
+H1–H2), minutes, foul-out and technical limits, the bonus and an optional double bonus, whether team fouls
+reset each period, each half or never, whether they carry into OT, and timeouts (full and 30-second, per
+game or per half, plus extra per OT). Each game keeps its own copy: change it for one game on the New game
+screen (**Change rules for this game**) or mid-game from the period button (**Rules for this game**).
 
 Defaults to NFHS as played in the Ivy Prep league: 4 × 8 min, foul out at 5 (technicals count toward the 5),
 ejected on a 2nd technical, bonus on the 5th team foul
@@ -105,6 +124,7 @@ and the same publish key.
 ```
 node tools/serve.js        # http://localhost:8080
 node tests/core.test.js    # stat and rules tests
+node tests/schedule.test.js  # schedule import tests
 node tools/make-icons.js   # regenerate icons
 ```
 

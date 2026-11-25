@@ -191,7 +191,8 @@
       currentSeasonId: sid,
       players: [],
       opponents: [],
-      settings: { rules: C.copyRules(), names: 'first', publishUrl: '', publishKey: '' }
+      settings: { rules: C.copyRules(), names: 'first', publishUrl: '', publishKey: '' },
+      schedule: []   // [{ id, seasonId, date, time, opponent, homeAway, location, gameId }]
     };
   }
 
@@ -200,6 +201,7 @@
       DB.loadMeta(function (err, m) {
         meta = m || defaultMeta();
         if (!m) saveMeta();
+        meta.schedule = meta.schedule || [];   // added after the first version
         DB.loadGames(function (err2, gs) {
           games = gs || [];
           applyTheme();
@@ -294,6 +296,7 @@
     var h = [];
     h.push(pageHead(meta.team.name + ' · ' + season.name, '',
       (fsAvailable() ? '<button class="btn sm" data-a="fullscreen">' + (fsActive() ? 'Exit full screen' : 'Full screen') + '</button>' : '') +
+      '<button class="btn sm" data-a="go" data-x="#schedule">Schedule</button>' +
       '<button class="btn sm" data-a="go" data-x="#roster">Roster</button>' +
       '<button class="btn sm" data-a="go" data-x="#settings">Settings</button>' +
       '<button class="btn sm pri" data-a="go" data-x="#new">New game</button>'));
@@ -309,6 +312,11 @@
       '<div><b class="num">' + (s.team.gp ? (s.team.pf / s.team.gp).toFixed(1) : '—') + '</b><span>Pts / game</span></div>' +
       '<div><b class="num">' + (s.team.gp ? (s.team.pa / s.team.gp).toFixed(1) : '—') + '</b><span>Allowed</span></div></div>');
     h.push('</div>');
+
+    var next = upcoming().slice(0, 3);
+    if (next.length) {
+      h.push('<h2>Up next</h2><ul class="games sched">' + next.map(function (x) { return schedRow(x, false); }).join('') + '</ul>');
+    }
 
     h.push('<h2>Games</h2>');
     if (!gs.length) {
@@ -442,6 +450,99 @@
     return h.join('');
   };
 
+  // ----- Schedule -----
+  function seasonSchedule() {
+    return meta.schedule.filter(function (x) { return x.seasonId === meta.currentSeasonId; })
+      .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.time || '') < (b.time || '') ? -1 : 1; });
+  }
+  // Scheduled games not yet started (or whose game was deleted), from today on.
+  function upcoming() {
+    var t = today();
+    return seasonSchedule().filter(function (x) { return x.date >= t && !(x.gameId && gameById(x.gameId)); });
+  }
+
+  // One schedule line. full = the Schedule screen (shows played results and a remove button).
+  function schedRow(x, full) {
+    var g = x.gameId && gameById(x.gameId), right;
+    if (g) {
+      var c = C.computeGame(g);
+      right = g.status === 'final'
+        ? '<button class="btn sm ghost" data-a="go" data-x="#report/' + g.id + '">' + (c.score.us > c.score.them ? 'W ' : c.score.us < c.score.them ? 'L ' : 'T ') + c.score.us + '–' + c.score.them + '</button>'
+        : '<button class="btn sm pri" data-a="go" data-x="#game/' + g.id + '">Resume ' + c.score.us + '–' + c.score.them + '</button>';
+    } else {
+      right = '<button class="btn sm pri" data-a="startScheduled" data-x="' + x.id + '">Start game</button>';
+    }
+    var armed = ui.armed === 'sch' + x.id;
+    return '<li class="sch-row"><span class="sch-when"><b>' + esc(R.fmtDate(x.date).replace(/, \d{4}$/, '')) + '</b><small>' + esc(weekday(x.date)) +
+      (x.time ? ' · ' + esc(x.time) : '') + '</small></span><span class="op">' + (x.homeAway === 'away' ? '@ ' : 'vs ') + esc(x.opponent) +
+      (x.location ? '<small>' + esc(x.location) + '</small>' : '') + '</span>' + right +
+      (full ? '<button class="btn sm danger' + (armed ? ' armed' : '') + '" data-a="rmSched" data-x="' + x.id + '">' + (armed ? 'Confirm' : 'Remove') + '</button>' : '') + '</li>';
+  }
+
+  function weekday(isoDate) {
+    var p = isoDate.split('-');
+    return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][new Date(+p[0], +p[1] - 1, +p[2]).getDay()];
+  }
+
+  // First year of the current season ("2026–27" → 2026), for dates written without a year.
+  function seasonStartYear() {
+    var s = find(meta.seasons, meta.currentSeasonId), y = s && parseInt(s.name, 10);
+    if (y > 1900) return y;
+    var d = new Date();
+    return d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1;
+  }
+
+  screens.schedule = function () {
+    var season = find(meta.seasons, meta.currentSeasonId), list = seasonSchedule(), pv = ui.schedPreview;
+    var h = [pageHead('Schedule · ' + season.name, backBtn('#home', 'Home'), '')];
+    h.push('<div class="pg-bd">');
+    if (pv) {
+      h.push('<h2>Check before adding · ' + pv.rows.length + ' game' + (pv.rows.length === 1 ? '' : 's') + ' found</h2>');
+      if (pv.rows.length) {
+        h.push('<div class="tw"><table class="st"><thead><tr><th class="l">Date</th><th class="l">Time</th><th class="l">Opponent</th><th class="l">Location</th></tr></thead><tbody>' +
+          pv.rows.map(function (x) {
+            return '<tr><td class="l">' + esc(weekday(x.date) + ' ' + R.fmtDate(x.date)) + '</td><td class="l">' + esc(x.time) + '</td><td class="l nm">' +
+              (x.homeAway === 'away' ? '@ ' : 'vs ') + esc(x.opponent) + '</td><td class="l">' + esc(x.location) + '</td></tr>';
+          }).join('') + '</tbody></table></div>');
+      }
+      if (pv.dupes) h.push('<p class="note">' + pv.dupes + ' already on the schedule and will be skipped.</p>');
+      if (pv.bad.length) {
+        h.push('<p class="note"><b>Couldn’t read ' + pv.bad.length + ' line' + (pv.bad.length === 1 ? '' : 's') + '</b> (no date or opponent found):</p><ul class="bad-lines">' +
+          pv.bad.slice(0, 8).map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + (pv.bad.length > 8 ? '<li>…</li>' : '') + '</ul>');
+      }
+      h.push('<div class="form">' + (pv.rows.length ? '<button class="btn pri" data-a="schedAdd">Add ' + pv.rows.length + ' game' + (pv.rows.length === 1 ? '' : 's') + '</button>' : '') +
+        '<button class="btn ghost" data-a="schedCancel">Cancel</button></div>');
+    } else {
+      h.push('<h2>Add your schedule</h2><p class="note">Upload a spreadsheet saved as CSV (Google Sheets: File → Download → CSV; Excel: Save As → CSV), ' +
+        'or paste the schedule below, one game per line. Columns can be in any order: date, opponent, home/away, location, time. ' +
+        'Lines like “Tue Dec 2 @ Trinity 4:30 PM” or “12/5 vs Riverdale” work too.</p>' +
+        '<div class="form"><label class="btn" for="sch-file">Upload a file…</label><input id="sch-file" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" class="sr" data-schedfile="1"></div>' +
+        '<div class="fld" style="margin-top:0.75rem"><label for="sch-text">Or paste it here</label><textarea id="sch-text" rows="6" data-schedtext="1" placeholder="Tue Dec 2 @ Trinity 4:30 PM&#10;Fri Dec 5 vs Riverdale 6:00 PM&#10;1/9/27, Collegiate, Away, Collegiate Gym">' +
+        esc(ui.schedText || '') + '</textarea></div><div class="form"><button class="btn pri" data-a="schedRead">Read schedule</button></div>');
+      h.push('<h2>Add one game</h2><form class="form" data-form="addSched">' +
+        '<div class="fld xs" style="flex-basis:11rem"><label for="sa-date">Date</label><input id="sa-date" name="date" type="date" required></div>' +
+        '<div class="fld xs" style="flex-basis:8rem"><label for="sa-time">Time</label><input id="sa-time" name="time" placeholder="4:30 PM" autocomplete="off"></div>' +
+        '<div class="fld"><label for="sa-opp">Opponent</label><input id="sa-opp" name="opponent" required autocomplete="off"></div>' +
+        '<div class="fld xs" style="flex-basis:9rem"><label for="sa-side">Side</label><select id="sa-side" name="homeAway"><option value="home">Home</option><option value="away">Away</option></select></div>' +
+        '<div class="fld"><label for="sa-loc">Location</label><input id="sa-loc" name="location" autocomplete="off"></div>' +
+        '<div class="fld xs"><span class="lab">&nbsp;</span><button class="btn pri" type="submit">Add</button></div></form>');
+    }
+    h.push('<h2>' + list.length + ' scheduled game' + (list.length === 1 ? '' : 's') + '</h2>');
+    if (!list.length) h.push('<p class="note">Nothing scheduled yet. Upcoming games show on the home screen with a Start game button.</p>');
+    else h.push('<ul class="games sched">' + list.map(function (x) { return schedRow(x, true); }).join('') + '</ul>');
+    h.push('</div>');
+    return h.join('');
+  };
+
+  function readSchedule(text) {
+    var res = window.SBSchedule.parse(text, seasonStartYear()), have = {};
+    seasonSchedule().forEach(function (x) { have[x.date + '|' + x.opponent.toLowerCase()] = true; });
+    var fresh = res.rows.filter(function (x) { return !have[x.date + '|' + x.opponent.toLowerCase()]; });
+    ui.schedPreview = { rows: fresh, bad: res.bad, dupes: res.rows.length - fresh.length };
+    render();
+    window.scrollTo(0, 0);
+  }
+
   // ----- Roster -----
   screens.roster = function () {
     var ps = seasonPlayers(), season = find(meta.seasons, meta.currentSeasonId);
@@ -491,7 +592,9 @@
     h.push('<div class="fld xs" style="flex-basis:12rem"><span class="lab">Side</span><div class="seg">' +
       '<button data-a="draftSide" data-x="home" class="' + (draft.homeAway === 'home' ? 'on' : '') + '">Home</button>' +
       '<button data-a="draftSide" data-x="away" class="' + (draft.homeAway === 'away' ? 'on' : '') + '">Away</button></div></div>');
-    h.push('</div>');
+    h.push('<div class="fld" style="flex-basis:100%"><label for="ng-nums">Their jersey numbers (optional)</label><input id="ng-nums" data-draft="oppNumsText" value="' +
+      esc(draft.oppNumsText || '') + '" placeholder="e.g. 1 3 7 13 20 32" autocomplete="off"></div>');
+    h.push('</div><p class="note">Entering their numbers now sets up their column before tip-off. You can still add numbers during the game.</p>');
     h.push('<h2>Starters · ' + draft.starters.length + ' of 5</h2><div class="pick">');
     ps.forEach(function (p) {
       var on = draft.starters.indexOf(p.id) >= 0;
@@ -499,10 +602,14 @@
         '</span><span>' + esc(shortName(p)) + '</span></button>');
     });
     h.push('</div>');
-    var r = C.copyRules(meta.settings.rules);
-    h.push('<p class="note">Rules: ' + esc(r.name) + ' — ' + r.periods + ' × ' + r.periodMinutes + ' min, foul out at ' + r.foulOut +
-      (r.techOut ? ', ejected at ' + r.techOut + ' technicals' : '') + ', bonus on team foul ' + r.bonusAt + ' each ' + r.bonusReset + ', ' + r.timeoutsFull + ' full + ' + r.timeoutsShort +
-      ' 30-sec timeouts. Change these in Settings.</p>');
+    h.push('<h2>Rules</h2>');
+    if (draft.rules) {
+      h.push(rulesForm(draft.rules, 'data-drule') + '<p class="note">These apply to this game only. ' +
+        '<button class="btn sm ghost" data-a="draftRules" data-x="off">Use the usual rules</button></p>');
+    } else {
+      h.push('<p class="note">' + rulesSummary(C.copyRules(meta.settings.rules)) + '</p>' +
+        '<button class="btn sm" data-a="draftRules" data-x="on">Change rules for this game</button>');
+    }
     h.push('</div>');
     return h.join('');
   };
@@ -555,15 +662,15 @@
     for (var i = 0; i < r.bonusAt; i++) boxes += '<span class="box' + (i < fouls ? ' on' : '') + '"></span>';
     boxes += '</span>' + (fouls > r.bonusAt ? '<span>+' + (fouls - r.bonusAt) + '</span>' : '');
     var pips = '<span class="pips">';
-    var totalFull = left.full + c.timeoutsUsed[tm].full, totalShort = left.short + c.timeoutsUsed[tm].short;
-    for (i = 0; i < totalFull; i++) pips += '<span class="pip' + (i < left.full ? ' on' : '') + '"></span>';
-    for (i = 0; i < totalShort; i++) pips += '<span class="pip s' + (i < left.short ? ' on' : '') + '"></span>';
+    for (i = 0; i < c.timeoutsAllot.full; i++) pips += '<span class="pip' + (i < left.full ? ' on' : '') + '"></span>';
+    for (i = 0; i < c.timeoutsAllot.short; i++) pips += '<span class="pip s' + (i < left.short ? ' on' : '') + '"></span>';
     pips += '</span>';
     h.push('<div class="tm ' + tm + '"><span class="tm-score">' + c.score[tm] + '</span><div class="tm-info">');
     h.push('<span class="tm-name">' + esc(name) + '</span>');
     // Shown on the team that shoots: BONUS once the other side reaches the bonus foul,
     // "1 TO BONUS" when their next foul gets there.
-    var bonus = c.inBonus[tm] ? '<span class="bonus">BONUS</span>' : c.shooting[tm] ? '<span class="bonus next">1 TO BONUS</span>' : '';
+    var bonus = c.inDoubleBonus[tm] ? '<span class="bonus">DOUBLE BONUS</span>' : c.inBonus[tm] ? '<span class="bonus">BONUS</span>' :
+      c.shooting[tm] ? '<span class="bonus next">1 TO BONUS</span>' : '';
     h.push('<span class="tm-row"><span>FOULS ' + fouls + '</span>' + boxes + bonus + '</span>');
     h.push('<button class="tm-to" data-a="drawer" data-x="to-' + tm + '">TO ' + pips + '<span>' + left.full + '+' + left.short + '</span></button>');
     h.push('</div></div>');
@@ -727,6 +834,7 @@
       }
       if (q > 1) h += '<button class="btn ghost" data-a="setQ" data-x="' + (q - 1) + '">Go back to ' + C.periodLabel(q - 1, r) + '<small>fix a mistake</small></button>';
       if (inReg) h += '<button class="btn ghost" data-a="endGame">End game early<small>' + c.score.us + '–' + c.score.them + '</small></button>';
+      h += '<button class="btn ghost" data-a="drawer" data-x="rules">Rules for this game<small>timeouts, fouls, periods</small></button>';
       h += '</div>';
       return sheet('Period · now ' + C.periodLabel(q, r), h, '', true);
     }
@@ -755,6 +863,10 @@
         '<h4 class="bench-hd">Bench</h4><div class="bench">' + bench.map(function (p) { return benchBtn(p, 'subTap'); }).join('') + '</div>' +
         '<p class="note">Subs entered any time before the next point count exactly for plus/minus, so it’s fine to catch up during free throws.</p>';
       return sheet('Substitutions', h, '<button class="btn pri" data-a="closeDrawer">Done</button>');
+    }
+    if (d === 'rules') {
+      return sheet('Rules for this game', '<p class="note" style="margin-top:0">Changes apply right away: team fouls, bonus and timeouts left are worked out again ' +
+        'from the plays. Your usual rules in Settings don’t change.</p>' + rulesForm(r, 'data-grule'), '<button class="btn pri" data-a="closeDrawer">Done</button>');
     }
     if (d === 'keypad') {
       var forChg = ui.kpFor === 'chg';
@@ -819,11 +931,52 @@
   };
 
   // ----- Settings -----
+  // One-line description of a rule set, e.g. for the New game screen.
+  function rulesSummary(r) {
+    var per = r.periods === 4 ? 'quarters' : r.periods === 2 ? 'halves' : 'periods';
+    var reset = { quarter: r.periods === 2 ? 'each half' : 'each quarter', half: 'each half', game: 'never' }[r.bonusReset];
+    return esc(r.name) + ': ' + r.periods + ' ' + per + ' × ' + r.periodMinutes + ' min · foul out at ' + r.foulOut +
+      (r.techOut ? ', ejected at ' + r.techOut + ' techs' : '') + ' · bonus on team foul ' + r.bonusAt +
+      (r.doubleBonusAt ? ' (double on ' + r.doubleBonusAt + ')' : '') + ', fouls reset ' + reset +
+      ' · ' + r.timeoutsFull + ' full + ' + r.timeoutsShort + ' 30-sec timeouts per ' + (r.timeoutsReset === 'half' ? 'half' : 'game') +
+      ' · OT ' + r.otMinutes + ' min, +' + r.otTimeoutsFull + (r.otTimeoutsShort ? ' full +' + r.otTimeoutsShort + ' 30-sec' : '') + ' timeout';
+  }
+
+  // Rule fields. attr says where edits go: data-rule (Settings: defaults for new games),
+  // data-drule (New game: this game only) or data-grule (the live game being scored).
+  function rulesForm(r, attr) {
+    function id(k) { return attr + '-' + k; }
+    function num(k, label) {
+      return '<div class="fld xs" style="flex-basis:9.5rem"><label for="' + id(k) + '">' + label + '</label><input id="' + id(k) +
+        '" type="number" min="0" inputmode="numeric" ' + attr + '="' + k + '" value="' + r[k] + '"></div>';
+    }
+    function sel(k, label, opts) {
+      var cur = typeof r[k] === 'boolean' ? (r[k] ? '1' : '0') : String(r[k]);
+      return '<div class="fld xs" style="flex-basis:12rem"><label for="' + id(k) + '">' + label + '</label><select id="' + id(k) + '" ' + attr + '="' + k + '">' +
+        opts.map(function (o) { return '<option value="' + o[0] + '"' + (cur === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div>';
+    }
+    return '<div class="form"><div class="fld"><label for="' + id('name') + '">Rules name (shown on reports)</label><input id="' + id('name') + '" ' + attr +
+      '="name" value="' + esc(r.name) + '"></div></div>' +
+      '<h3 class="rules-hd">Game</h3><div class="form rules">' + num('periods', 'Periods (4 = quarters)') + num('periodMinutes', 'Minutes each') + num('otMinutes', 'OT minutes') + '</div>' +
+      '<h3 class="rules-hd">Fouls</h3><div class="form rules">' + num('foulOut', 'Foul out at') + num('techOut', 'Ejected at techs') +
+      num('bonusAt', 'Bonus on team foul') + num('doubleBonusAt', 'Double bonus on (0 = none)') +
+      sel('bonusReset', 'Team fouls reset', [['quarter', 'Each period'], ['half', 'Each half'], ['game', 'Never']]) +
+      sel('otFoulsCarry', 'Team fouls in OT', [['1', 'Carry over'], ['0', 'Start at 0']]) + '</div>' +
+      '<h3 class="rules-hd">Timeouts</h3><div class="form rules">' + num('timeoutsFull', 'Full') + num('timeoutsShort', '30-second') +
+      sel('timeoutsReset', 'Allotment is per', [['game', 'Game'], ['half', 'Half (fresh each half)']]) +
+      num('otTimeoutsFull', 'Full added per OT') + num('otTimeoutsShort', '30-sec added per OT') + '</div>';
+  }
+
+  function ruleValue(k, v) {
+    if (k === 'otFoulsCarry') return v === '1';
+    if (k === 'bonusReset' || k === 'timeoutsReset') return v;
+    if (k === 'name') return String(v).trim() || 'Custom';
+    var n = Math.max(0, parseInt(v, 10) || 0);
+    return k === 'periods' ? Math.max(1, n) : n;
+  }
+
   screens.settings = function () {
     var r = C.copyRules(meta.settings.rules), s = meta.settings;
-    function num(k, label) {
-      return '<div class="fld xs" style="flex-basis:9rem"><label for="r-' + k + '">' + label + '</label><input id="r-' + k + '" type="number" min="0" inputmode="numeric" data-rule="' + k + '" value="' + r[k] + '"></div>';
-    }
     var h = [pageHead('Settings', backBtn('#home', 'Home'), '')];
     h.push('<div class="pg-bd">');
     h.push('<h2>Team</h2><div class="form">' +
@@ -837,12 +990,9 @@
       '</select></div><div class="fld"><label for="s-new">New season name</label><input id="s-new" placeholder="' + esc(seasonName(new Date(new Date().getFullYear() + 1, 8, 1))) + '"></div>' +
       '<div class="fld xs"><span class="lab">&nbsp;</span><button class="btn" data-a="newSeason">Start season</button></div></div>');
 
-    h.push('<h2>Rules (new games)</h2><div class="form">' +
-      num('periods', 'Quarters') + num('periodMinutes', 'Minutes') + num('foulOut', 'Foul out at') + num('techOut', 'Ejected at techs') + num('bonusAt', 'Bonus on foul') +
-      '<div class="fld xs" style="flex-basis:9rem"><label for="r-reset">Bonus resets</label><select id="r-reset" data-rule="bonusReset"><option value="quarter"' + (r.bonusReset === 'quarter' ? ' selected' : '') + '>Each quarter</option><option value="half"' + (r.bonusReset === 'half' ? ' selected' : '') + '>Each half</option></select></div>' +
-      num('timeoutsFull', 'Full TOs') + num('timeoutsShort', '30-sec TOs') + num('otMinutes', 'OT minutes') + num('otTimeoutsFull', 'TOs per OT') +
-      '<div class="fld xs" style="flex-basis:12rem"><label for="r-carry">OT team fouls</label><select id="r-carry" data-rule="otFoulsCarry"><option value="1"' + (r.otFoulsCarry ? ' selected' : '') + '>Carry from Q4</option><option value="0"' + (!r.otFoulsCarry ? ' selected' : '') + '>Reset each OT</option></select></div>' +
-      '</div><p class="note">Each game keeps the rules it started with. Changes apply to new games.</p>');
+    h.push('<h2>Rules for new games</h2>' + rulesForm(r, 'data-rule') +
+      '<p class="note">Each game keeps the rules it started with. To use different rules for one game (a tournament, a scrimmage), ' +
+      'change them on the New game screen, or from the period button during a game.</p>');
 
     var pctOpts = s.pct || {};
     function pctSel(k, label) {
@@ -1209,6 +1359,48 @@
     else toast('Five starters already picked. Tap one to remove it.');
     render();
   };
+  // Schedule
+  actions.schedRead = function () {
+    var el = document.getElementById('sch-text'), text = el ? el.value : '';
+    if (!text.trim()) { toast('Paste the schedule first, or upload a file.'); return; }
+    ui.schedText = text;
+    readSchedule(text);
+  };
+  actions.schedCancel = function () { ui.schedPreview = null; render(); };
+  actions.schedAdd = function () {
+    var rows = ui.schedPreview.rows;
+    rows.forEach(function (x) {
+      meta.schedule.push({ id: uid(), seasonId: meta.currentSeasonId, date: x.date, time: x.time, opponent: x.opponent,
+        homeAway: x.homeAway, location: x.location, gameId: null });
+    });
+    saveMeta();
+    ui.schedPreview = null; ui.schedText = '';
+    toast('Added ' + rows.length + ' game' + (rows.length === 1 ? '' : 's') + ' to the schedule.');
+    render();
+  };
+  actions.rmSched = function (x) {
+    if (ui.armed !== 'sch' + x) { ui.armed = 'sch' + x; return render(); }
+    ui.armed = null;
+    meta.schedule = meta.schedule.filter(function (s) { return s.id !== x; });
+    saveMeta();
+    render();
+  };
+  // Opens New game filled in from the schedule; starting it marks the entry as played.
+  actions.startScheduled = function (x) {
+    var s = find(meta.schedule, x);
+    draft = { opponent: s.opponent, date: s.date < today() ? today() : s.date, location: s.location, homeAway: s.homeAway, starters: [], schedId: s.id };
+    go('#new');
+  };
+
+  actions.draftRules = function (x) { draft.rules = x === 'on' ? C.copyRules(meta.settings.rules) : null; render(); };
+
+  // "1, 3 7/13" → ['1', '3', '7', '13']: jersey numbers, no repeats.
+  function parseNums(text) {
+    var out = [];
+    String(text || '').split(/[^0-9]+/).forEach(function (n) { if (n && n.length <= 2 && out.indexOf(n) < 0) out.push(n); });
+    return out;
+  }
+
   actions.startGame = function () {
     var name = (draft.opponent || '').trim();
     if (!name) { toast('Enter the opponent’s name.'); var el = document.getElementById('ng-opp'); if (el) el.focus(); return; }
@@ -1219,12 +1411,15 @@
     var roster = seasonPlayers().map(function (p) { return { id: p.id, num: p.num, first: p.first, last: p.last }; });
     var g = {
       id: uid(), seasonId: meta.currentSeasonId, opponent: name, date: draft.date || today(), location: (draft.location || '').trim(),
-      homeAway: draft.homeAway, rules: C.copyRules(meta.settings.rules), quarter: 1, status: 'live', events: [], seq: 0,
+      homeAway: draft.homeAway, rules: C.copyRules(draft.rules || meta.settings.rules), quarter: 1, status: 'live', events: [], seq: 0,
       onCourt: draft.starters.slice(), appeared: draft.starters.slice(), starters: draft.starters.slice(), roster: roster,
-      oppNums: [], created: Date.now(), publishedUrl: '', publishId: '', subLog: true
+      oppNums: parseNums(draft.oppNumsText), created: Date.now(), publishedUrl: '', publishId: '', subLog: true
     };
     games.push(g);
     saveGame(g);
+    // Started from the schedule: mark that entry as played.
+    var sch = draft.schedId && find(meta.schedule, draft.schedId);
+    if (sch) { sch.gameId = g.id; saveMeta(); }
     draft = null;
     ui.side = 'us'; ui.sel = null; ui.oppSel = null;
     if (autoFullscreen()) enterFullscreen();
@@ -1263,6 +1458,7 @@
     var s = window.SBSample.build(meta, uid);
     s.players.forEach(function (p) { meta.players.push(p); });
     s.games.forEach(function (g) { games.push(g); saveGame(g); });
+    s.schedule.forEach(function (x) { meta.schedule.push(x); });
     saveMeta();
     toast('Sample games added.');
     go('#home');
@@ -1273,6 +1469,7 @@
     games.filter(function (g) { return g.sample; }).forEach(function (g) { DB.deleteGame(g.id); });
     games = games.filter(function (g) { return !g.sample; });
     meta.players = meta.players.filter(function (p) { return !p.sample; });
+    meta.schedule = meta.schedule.filter(function (s) { return !s.sample; });
     saveMeta();
     toast('Sample data removed.');
     render();
@@ -1357,7 +1554,7 @@
   };
 
   // ---------- event wiring ----------
-  var TWO_TAP = { rmEvent: 1, rmPlayer: 1, removeSample: 1, deleteGame: 1 };
+  var TWO_TAP = { rmEvent: 1, rmPlayer: 1, removeSample: 1, deleteGame: 1, rmSched: 1 };
   function closest(el, attr) {
     while (el && el !== document) { if (el.getAttribute && el.getAttribute(attr) !== null) return el; el = el.parentNode; }
     return null;
@@ -1391,12 +1588,18 @@
       meta.team[k] = el.value.trim() || meta.team[k];
       saveMeta(); applyTheme();
     } else if ((k = el.getAttribute('data-rule'))) {
-      var v = el.value;
-      if (k === 'otFoulsCarry') v = v === '1';
-      else if (k !== 'bonusReset') v = Math.max(0, parseInt(v, 10) || 0);
       meta.settings.rules = C.copyRules(meta.settings.rules);
-      meta.settings.rules[k] = v;
+      meta.settings.rules[k] = ruleValue(k, el.value);
       saveMeta();
+    } else if ((k = el.getAttribute('data-drule'))) {
+      draft.rules[k] = ruleValue(k, el.value);
+    } else if ((k = el.getAttribute('data-grule'))) {
+      // Rules of the game being scored: fouls, bonus and timeouts are recomputed from the plays.
+      var lg = gameById(route.id);
+      lg.rules = C.copyRules(lg.rules);
+      lg.rules[k] = ruleValue(k, el.value);
+      saveGame(lg);
+      render();
     } else if ((k = el.getAttribute('data-pct'))) {
       meta.settings.pct = meta.settings.pct || {};
       meta.settings.pct[k] = el.value === '1';
@@ -1410,17 +1613,36 @@
       saveMeta(); toast('Switched season.');
     } else if (el.getAttribute('data-import')) {
       importBackup(el.files && el.files[0]);
+    } else if (el.getAttribute('data-schedfile')) {
+      var f = el.files && el.files[0];
+      if (!f) return;
+      if (/\.xlsx?$/i.test(f.name)) { toast('Save the spreadsheet as CSV first (File → Download → CSV), then upload that.'); el.value = ''; return; }
+      var rd = new FileReader();
+      rd.onload = function () { readSchedule(String(rd.result)); };
+      rd.readAsText(f);
+      el.value = '';
     }
   });
 
   app.addEventListener('input', function (ev) {
     var k = ev.target.getAttribute('data-draft');
     if (k) draft[k] = ev.target.value;
+    if (ev.target.getAttribute('data-schedtext')) ui.schedText = ev.target.value;
   });
 
   app.addEventListener('submit', function (ev) {
     ev.preventDefault();
     var f = ev.target;
+    if (f.getAttribute('data-form') === 'addSched') {
+      var sOpp = f.opponent.value.trim();
+      if (!f.date.value || !sOpp) return;
+      meta.schedule.push({ id: uid(), seasonId: meta.currentSeasonId, date: f.date.value, time: f.time.value.trim(), opponent: sOpp,
+        homeAway: f.homeAway.value, location: f.location.value.trim(), gameId: null });
+      saveMeta();
+      toast('Added ' + (f.homeAway.value === 'away' ? '@ ' : 'vs ') + sOpp + '.');
+      render();
+      return;
+    }
     if (f.getAttribute('data-form') === 'addPlayer') {
       var num = f.num.value.trim(), first = f.first.value.trim(), last = f.last.value.trim();
       if (!num || !first) return;
@@ -1442,6 +1664,7 @@
       DB.replaceAll(data.meta, data.games, function (err) {
         if (err) return toast('Restore failed: ' + err);
         meta = data.meta; games = data.games;
+        meta.schedule = meta.schedule || [];
         applyTheme();
         toast('Restored ' + games.length + ' games.');
         go('#home');

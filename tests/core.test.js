@@ -77,6 +77,38 @@ test('season game logs and plus/minus totals', function () {
   assert.deepStrictEqual(s.games.map(function (x) { return [x.id, x.line.pts, x.pm]; }), [['g1', 5, 3], ['g2', 2, undefined]]);
 });
 
+test('custom rules: halves, fouls that never reset, double bonus', function () {
+  var halves = SB.copyRules({ periods: 2, bonusReset: 'half', bonusAt: 7, doubleBonusAt: 10 });
+  assert.strictEqual(SB.periodLabel(2, halves) + SB.periodLabel(3, halves), 'H2OT');
+  assert.strictEqual(SB.periodLabel(3, SB.copyRules({ periods: 3 })), 'P3');
+  var evs = [];
+  for (var i = 0; i < 7; i++) evs.push(ev(2, 'us', 'a', 'foul', 'p'));
+  var c = SB.computeGame(game(evs, 2, halves));
+  assert.strictEqual(c.inBonus.them, true);
+  assert.strictEqual(c.inDoubleBonus.them, false);
+  for (i = 0; i < 3; i++) evs.push(ev(2, 'us', 'a', 'foul', 'p'));
+  assert.strictEqual(SB.computeGame(game(evs, 2, halves)).inDoubleBonus.them, true);
+  // OT carries the second half's fouls when fouls reset by half.
+  assert.strictEqual(SB.computeGame(game(evs, 3, halves)).currentFouls.us, 10);
+  // Fouls that never reset add up across the game.
+  var never = SB.copyRules({ bonusReset: 'game' });
+  c = SB.computeGame(game([ev(1, 'us', 'a', 'foul', 'p'), ev(3, 'us', 'a', 'foul', 'p')], 4, never));
+  assert.strictEqual(c.currentFouls.us, 2);
+});
+
+test('timeouts per half', function () {
+  var r = SB.copyRules({ timeoutsReset: 'half', timeoutsFull: 2, timeoutsShort: 1, otTimeoutsFull: 1 });
+  var evs = [ev(1, 'us', '', 'timeout', 'full'), ev(2, 'us', '', 'timeout', 'full'), ev(2, 'us', '', 'timeout', 'short')];
+  var c = SB.computeGame(game(evs, 2, r));
+  assert.deepStrictEqual(c.timeoutsLeft.us, { full: 0, short: 0 });
+  c = SB.computeGame(game(evs, 3, r));
+  assert.deepStrictEqual(c.timeoutsLeft.us, { full: 2, short: 1 }, 'a fresh allotment in the second half');
+  evs.push(ev(4, 'us', '', 'timeout', 'full'));
+  c = SB.computeGame(game(evs, 5, r));
+  assert.deepStrictEqual(c.timeoutsLeft.us, { full: 2, short: 1 }, 'OT adds to what is left of the second half');
+  assert.deepStrictEqual(c.timeoutsAllot, { full: 3, short: 1 });
+});
+
 test('percentages can be switched off', function () {
   assert.deepStrictEqual(SB.pctShown({}), { fg: true, tp: true, ft: true });
   assert.deepStrictEqual(SB.pctShown({ pct: { two: false } }), { fg: false, tp: true, ft: true });

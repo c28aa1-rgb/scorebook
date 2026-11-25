@@ -91,7 +91,7 @@
     };
   }
 
-  // Returns { players: [new players], games: [two games] }. Uses the current roster if there is one.
+  // Returns { players: [new players], games: [two games], schedule: [entries] }. Uses the current roster if there is one.
   function build(meta, uid) {
     var seasonId = meta.currentSeasonId, rules = meta.settings.rules, added = [];
     var players = meta.players.filter(function (p) { return p.seasonId === seasonId; });
@@ -155,7 +155,20 @@
     g2.quarter = 3;
     g2.onCourt = starters.slice();
 
-    return { players: added, games: [g1, g2] };
+    // A schedule: the two games above, plus a few still to come.
+    function sched(days, opponent, homeAway, location, time, gameId) {
+      return { id: uid(), seasonId: seasonId, date: dateOffset(days), time: time, opponent: opponent, homeAway: homeAway,
+        location: location, gameId: gameId || null, sample: true };
+    }
+    var schedule = [
+      sched(-4, 'Riverdale', 'home', 'Dalton Main Gym', '6:00 PM', g1.id),
+      sched(0, 'Trinity', 'away', 'Trinity Upper Gym', '4:30 PM', g2.id),
+      sched(3, 'Poly Prep', 'home', 'Dalton Main Gym', '5:00 PM'),
+      sched(7, 'Collegiate', 'away', 'Collegiate Gym', '4:15 PM'),
+      sched(10, 'Horace Mann', 'home', 'Dalton Main Gym', '6:30 PM')
+    ];
+
+    return { players: added, games: [g1, g2], schedule: schedule };
   }
 
   root.SBSample = { build: build };
