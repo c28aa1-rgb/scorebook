@@ -1,8 +1,8 @@
 /*
  * Cloud sync settings. With config left null the app runs on this tablet only (no sign-in).
- * Fill config in from Firebase (Project settings → Your apps → SDK setup → Config) to require
- * Google sign-in and sync everything to Firestore. These values are not secret: access is
- * controlled by the sign-in check below and by firestore.rules on the server.
+ * With a config, the app requires Google sign-in and syncs everything to Firestore.
+ * These values are not secret. Who may sign in is not listed here (this file is public): it's the
+ * access/ list in the database, enforced by firestore.rules (see README → Cloud sync).
  */
 window.SB_FIREBASE = {
   // The "Dalton Scorebook" web app in the daltrillion-admin Firebase project (shared with Daltrillion,
@@ -15,8 +15,6 @@ window.SB_FIREBASE = {
     messagingSenderId: '26381559698',
     appId: '1:26381559698:web:a0facffa26491de3ef434b'
   },
-  // Google accounts allowed to use the app (firestore.rules must list the same addresses).
-  allowed: ['c28aa1@dalton.org'],
   // Folder in the database for this team's scorebook.
   book: 'dalton'
 };

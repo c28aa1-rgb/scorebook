@@ -6,6 +6,7 @@
  *
  * Layout: books/{book}            { meta, updated }   roster, seasons, schedule, settings
  *         books/{book}/games/{id} { game, updated }   one game with its plays
+ *         access/{email}                              who may use it (managed by the project owner)
  *
  * Does nothing until js/firebase-config.js has a config; the SDK is only loaded then.
  */
@@ -18,9 +19,21 @@
 
   function configured() { return !!(CFG.config && CFG.config.projectId); }
 
-  function allowed(user) {
-    var email = user && user.email && user.email.toLowerCase();
-    return !!email && (CFG.allowed || []).some(function (a) { return a.toLowerCase() === email; });
+  // Is this account on the access list (access/{email} in the database)? cb(true | false | null);
+  // null = couldn't check (offline before this account was ever checked). A yes is remembered on
+  // the tablet so the app still opens offline; the server rules enforce access either way.
+  function checkAccess(user, cb) {
+    var email = ((user && user.email) || '').toLowerCase(), memo = 'sb-access:' + email;
+    if (!email) return cb(false);
+    db.collection('access').doc(email).get().then(function (d) {
+      try { if (d.exists) localStorage.setItem(memo, '1'); else localStorage.removeItem(memo); } catch (e) {}
+      cb(d.exists);
+    }, function (e) {
+      if (e && e.code === 'permission-denied') return cb(false);
+      var known = false;
+      try { known = localStorage.getItem(memo) === '1'; } catch (x) {}
+      cb(known ? true : null);
+    });
   }
 
   // Loads the three SDK files in order, then sets up auth and Firestore.
@@ -57,7 +70,7 @@
   // Popup first; a full-page redirect where popups don't work (some home-screen apps).
   function signIn() {
     var p = new fb.auth.GoogleAuthProvider();
-    p.setCustomParameters({ prompt: 'select_account', hd: 'dalton.org', login_hint: (CFG.allowed || [])[0] || '' });
+    p.setCustomParameters({ prompt: 'select_account' });
     return auth.signInWithPopup(p)['catch'](function (e) {
       if (e && /popup-blocked|operation-not-supported|web-storage-unsupported/.test(e.code || '')) return auth.signInWithRedirect(p);
       throw e;
@@ -140,7 +153,7 @@
   }
 
   root.SBCloud = {
-    configured: configured, allowed: allowed, load: load, onAuth: onAuth, signIn: signIn, signOut: signOut,
+    configured: configured, checkAccess: checkAccess, load: load, onAuth: onAuth, signIn: signIn, signOut: signOut,
     currentUser: currentUser, status: status, onStatus: onStatus, pushMeta: pushMeta, pushGame: pushGame,
     removeGame: removeGame, pull: pull, listen: listen, replaceAll: replaceAll
   };

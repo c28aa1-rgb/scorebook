@@ -134,7 +134,7 @@ Move them with Settings → **Save backup file** and **Restore from backup**.
 ## Cloud sync (Firebase)
 
 With `js/firebase-config.js` filled in, the app asks for Google sign-in before anything else and only
-lets in the addresses listed there (now c28aa1@dalton.org). Every change is saved on the tablet first and
+lets in accounts on the access list (see below). Every change is saved on the tablet first and
 then to Firestore, so scoring never waits on the network; changes made offline upload when the tablet is
 back online, and signing in on another tablet shows the same games. Settings → **Account and sync** shows
 the account, the sync state and **Sign out**. Backup files still work as an extra copy.
@@ -145,9 +145,12 @@ c28aa1-rgb.github.io is an authorized domain, so sign-in works on the GitHub Pag
 localhost unless that's added under Authentication → Settings → Authorized domains).
 
 Data lives under `books/dalton` (roster, seasons, schedule, settings) and `books/dalton/games/{id}`.
-`firestore.rules` lets only the listed Google accounts read or write it; deploy it with
-`firebase deploy --only firestore:rules`. To give someone else access, add their address to both
-`firestore.rules` and `allowed` in `js/firebase-config.js`.
+**Who can sign in** is kept in the database, not in this repo (which is public): one document per Google
+account in the `access` collection, named by the email address in lower case (e.g.
+`access/coach@dalton.org`, any fields). To add or remove someone, open the Firebase console → Firestore
+Database → `access` and add or delete their document. `firestore.rules` only lets accounts with a
+document there (and a verified email) read or write `books/`, and nobody can change `access` from the app.
+Deploy rule changes with `firebase deploy --only firestore:rules`.
 
 The Firebase SDK is bundled in `vendor/firebase` (so sign-in works offline once cached) and is only loaded
 when a config is set; with `config: null` the app runs on the tablet alone, as before.

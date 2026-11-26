@@ -265,12 +265,15 @@
 
   function startCloud() {
     Cloud.load(function (err) {
-      if (err) { showGate('error', err.message); return; }
+      if (err) { showGate('error', err.message + ' Check the internet connection.'); return; }
       Cloud.onAuth(function (user) {
         if (!user) { syncing = false; showGate('signin'); return; }
-        if (!Cloud.allowed(user)) { syncing = false; showGate('denied', user.email); return; }
-        gate = null;
-        startSync(function () { openApp(); });
+        Cloud.checkAccess(user, function (ok) {
+          if (ok === null) { syncing = false; showGate('error', 'Couldn’t check access for ' + user.email + '. Connect to the internet the first time you sign in.'); return; }
+          if (!ok) { syncing = false; showGate('denied', user.email); return; }
+          gate = null;
+          startSync(function () { openApp(); });
+        });
       });
     });
     Cloud.onStatus(function (s) { syncState = s; if (route.name === 'settings' && !gate) render(); });
@@ -285,10 +288,10 @@
       body = '<p><b>' + esc(detail) + '</b> doesn’t have access to this scorebook.</p>' +
         '<button class="btn pri" data-a="signInOther">Use a different account</button>';
     } else if (kind === 'error') {
-      body = '<p>' + esc(detail || 'Couldn’t start sign-in.') + ' Check the internet connection and try again.</p>' +
+      body = '<p>' + esc(detail || 'Couldn’t start sign-in. Check the internet connection.') + '</p>' +
         '<button class="btn pri" data-a="reload">Try again</button>';
     } else {
-      body = '<p>Sign in with your Dalton Google account to open the scorebook.</p>' +
+      body = '<p>Sign in with Google to open the scorebook.</p>' +
         '<button class="btn pri gate-google" data-a="signIn">Sign in with Google</button>' +
         (gate.msg ? '<p class="gate-msg">' + esc(gate.msg) + '</p>' : '');
     }
