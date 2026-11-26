@@ -131,6 +131,22 @@ redeploys it within a minute or two.
 Data is saved per address, so games entered at a local test address don't appear on the hosted one.
 Move them with Settings → **Save backup file** and **Restore from backup**.
 
+## Cloud sync (Firebase)
+
+With `js/firebase-config.js` filled in, the app asks for Google sign-in before anything else and only
+lets in the addresses listed there (now c28aa1@dalton.org). Every change is saved on the tablet first and
+then to Firestore, so scoring never waits on the network; changes made offline upload when the tablet is
+back online, and signing in on another tablet shows the same games. Settings → **Account and sync** shows
+the account, the sync state and **Sign out**. Backup files still work as an extra copy.
+
+Data lives under `books/dalton` (roster, seasons, schedule, settings) and `books/dalton/games/{id}`.
+`firestore.rules` lets only the listed Google accounts read or write it; deploy it with
+`firebase deploy --only firestore:rules`. To give someone else access, add their address to both
+`firestore.rules` and `allowed` in `js/firebase-config.js`.
+
+The Firebase SDK is bundled in `vendor/firebase` (so sign-in works offline once cached) and is only loaded
+when a config is set; with `config: null` the app runs on the tablet alone, as before.
+
 ## Publishing reports (optional)
 
 ```

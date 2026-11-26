@@ -59,8 +59,23 @@
     return ((p.first || '') + (p.last ? ' ' + p.last.charAt(0) + '.' : '')).trim();
   }
 
-  function saveMeta() { DB.saveMeta(meta, function (err) { if (err) toast('Could not save. Storage may be full.'); }); }
-  function saveGame(g) { DB.saveGame(g, function (err) { if (err) toast('Could not save game. Storage may be full.'); }); }
+  // Every save goes to the tablet first, then to the cloud when sync is on. The updated time
+  // decides which copy wins when two tablets have changed the same thing.
+  function saveMeta() {
+    meta.updated = Date.now();
+    DB.saveMeta(meta, function (err) { if (err) toast('Could not save. Storage may be full.'); });
+    if (syncing) Cloud.pushMeta(meta);
+  }
+  function saveGame(g) {
+    g.updated = Date.now();
+    if (syncing) g.synced = true;
+    DB.saveGame(g, function (err) { if (err) toast('Could not save game. Storage may be full.'); });
+    if (syncing) Cloud.pushGame(g);
+  }
+  function removeGame(id) {
+    DB.deleteGame(id);
+    if (syncing) Cloud.removeGame(id);
+  }
 
   function toast(text, ms) {
     var el = document.getElementById('toast');
@@ -222,19 +237,124 @@
         meta.schedule = meta.schedule || [];   // added after the first version
         DB.loadGames(function (err2, gs) {
           games = gs || [];
-          applyTheme();
-          window.addEventListener('hashchange', onRoute);
-          window.addEventListener('resize', fitScale);
-          hideSplash();
-          document.addEventListener('visibilitychange', syncWake);
-          window.addEventListener('focus', syncWake);
-          window.addEventListener('pageshow', syncWake);
-          document.addEventListener('fullscreenchange', onFullscreen);
-          document.addEventListener('webkitfullscreenchange', onFullscreen);
-          onRoute();
+          if (Cloud.configured()) startCloud(); else openApp();
         });
       });
     });
+  }
+
+  // Shows the app (once): listeners, first screen, end of the launch animation.
+  var appOpen = false;
+  function openApp() {
+    if (appOpen) { onRoute(); return; }
+    appOpen = true;
+    applyTheme();
+    window.addEventListener('hashchange', onRoute);
+    window.addEventListener('resize', fitScale);
+    hideSplash();
+    document.addEventListener('visibilitychange', syncWake);
+    window.addEventListener('focus', syncWake);
+    window.addEventListener('pageshow', syncWake);
+    document.addEventListener('fullscreenchange', onFullscreen);
+    document.addEventListener('webkitfullscreenchange', onFullscreen);
+    onRoute();
+  }
+
+  // ---------- cloud sign-in and sync ----------
+  var Cloud = window.SBCloud, syncing = false, gate = null, syncState = 'synced';
+
+  function startCloud() {
+    Cloud.load(function (err) {
+      if (err) { showGate('error', err.message); return; }
+      Cloud.onAuth(function (user) {
+        if (!user) { syncing = false; showGate('signin'); return; }
+        if (!Cloud.allowed(user)) { syncing = false; showGate('denied', user.email); return; }
+        gate = null;
+        startSync(function () { openApp(); });
+      });
+    });
+    Cloud.onStatus(function (s) { syncState = s; if (route.name === 'settings' && !gate) render(); });
+  }
+
+  // Full-screen sign-in / no-access screen; nothing else is shown until an allowed account signs in.
+  function showGate(kind, detail, msg) {
+    gate = { kind: kind, detail: detail || '', msg: msg || '' };
+    hideSplash();
+    var body;
+    if (kind === 'denied') {
+      body = '<p><b>' + esc(detail) + '</b> doesn’t have access to this scorebook.</p>' +
+        '<button class="btn pri" data-a="signInOther">Use a different account</button>';
+    } else if (kind === 'error') {
+      body = '<p>' + esc(detail || 'Couldn’t start sign-in.') + ' Check the internet connection and try again.</p>' +
+        '<button class="btn pri" data-a="reload">Try again</button>';
+    } else {
+      body = '<p>Sign in with your Dalton Google account to open the scorebook.</p>' +
+        '<button class="btn pri gate-google" data-a="signIn">Sign in with Google</button>' +
+        (gate.msg ? '<p class="gate-msg">' + esc(gate.msg) + '</p>' : '');
+    }
+    app.innerHTML = '<div class="gate"><img src="icons/icon.svg" alt="" width="96" height="96"><h1>' + esc(meta.team.name) + ' Scorebook</h1>' + body + '</div>';
+  }
+
+  // First sync after sign-in: merge the cloud copy with this tablet's, then follow live changes.
+  // Per game and for the rest (meta), the copy changed most recently wins. A game that was synced
+  // before but is gone from the cloud was deleted on another tablet; one never synced is new here.
+  function startSync(cb) {
+    Cloud.pull(function (err, remote) {
+      if (err) { syncing = true; cb(); toast('Couldn’t reach the cloud copy. Working on this tablet; it will sync when online.', 5000); return; }
+      syncing = true;
+      if (remote.meta && (remote.meta.updated || 0) > (meta.updated || 0)) {
+        meta = remote.meta; meta.schedule = meta.schedule || [];
+        DB.saveMeta(meta, function () {});
+      } else if (!remote.meta || (meta.updated || 0) > (remote.meta.updated || 0)) {
+        Cloud.pushMeta(meta);
+      }
+      var byId = {};
+      remote.games.forEach(function (rg) { byId[rg.id] = rg; });
+      games = games.filter(function (g) {
+        var rg = byId[g.id];
+        if (!rg) {
+          if (g.synced) { DB.deleteGame(g.id); return false; }
+          g.synced = true; DB.saveGame(g, function () {}); Cloud.pushGame(g);
+          return true;
+        }
+        if ((g.updated || 0) > (rg.updated || 0)) Cloud.pushGame(g);
+        return true;
+      });
+      remote.games.forEach(function (rg) {
+        var lg = gameById(rg.id);
+        if (!lg || (rg.updated || 0) > (lg.updated || 0)) takeRemoteGame(rg);
+      });
+      Cloud.listen(onRemoteMeta, function (rg) {
+        var lg = gameById(rg.id);
+        if (!lg || (rg.updated || 0) > (lg.updated || 0)) { takeRemoteGame(rg); refresh(); }
+      }, function (id) {
+        if (!gameById(id)) return;
+        games = games.filter(function (g) { return g.id !== id; });
+        DB.deleteGame(id);
+        if (route.id === id) go('#home'); else refresh();
+      });
+      cb();
+    });
+  }
+
+  function takeRemoteGame(rg) {
+    rg.synced = true;
+    games = games.filter(function (g) { return g.id !== rg.id; }).concat([rg]);
+    DB.saveGame(rg, function () {});
+  }
+  function onRemoteMeta(rm) {
+    if (!rm || (rm.updated || 0) <= (meta.updated || 0)) return;
+    meta = rm; meta.schedule = meta.schedule || [];
+    DB.saveMeta(meta, function () {});
+    applyTheme();
+    refresh();
+  }
+  // Redraw after a change from another tablet, but not under an open sheet or mid-typing.
+  function refresh() {
+    if (!appOpen || gate || ui.drawer) return;
+    var a = document.activeElement;
+    if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return;
+    render();
   }
 
   function onFullscreen() { fitScale(); render(); }
@@ -257,6 +377,7 @@
   }
 
   function render() {
+    if (gate) { showGate(gate.kind, gate.detail, gate.msg); return; }
     var fn = screens[route.name] || screens.home;
     app.innerHTML = route.name === 'game' ? fn() : '<div class="pg">' + fn() + '</div>';
     if (route.name === 'game' && ui.flash) {
@@ -1125,7 +1246,15 @@
       '<div class="fld"><label for="s-key">Publish key</label><input id="s-key" type="password" data-setting="publishKey" value="' + esc(s.publishKey) + '" autocomplete="off"></div>' +
       '</div><p class="note">Published reports get a long random link that isn’t listed or searchable. Leave the address blank to share by email text and saved files only.</p>');
 
-    h.push('<h2>Backup</h2><p class="note">Everything is stored on this tablet. Save a backup after each game in case the browser data is cleared.</p>' +
+    if (syncing) {
+      var u = Cloud.currentUser(), word = { synced: 'Everything is synced.', syncing: 'Syncing…', offline: 'Offline. Changes are saved on this tablet and will sync when it’s back online.' }[syncState];
+      h.push('<h2>Account and sync</h2><p class="note">Signed in as <b>' + esc(u && u.email) + '</b>. ' + word +
+        ' Every change is saved to the cloud, so signing in on another tablet shows the same games.</p>' +
+        '<div class="form"><button class="btn danger' + (ui.armed === 'signout' ? ' armed' : '') + '" data-a="signOut">' +
+        (ui.armed === 'signout' ? 'Confirm sign out' : 'Sign out') + '</button></div>');
+    }
+    h.push('<h2>Backup</h2><p class="note">' + (syncing ? 'The cloud copy is your main backup. A backup file is an extra copy you can keep yourself.'
+      : 'Everything is stored on this tablet. Save a backup after each game in case the browser data is cleared.') + '</p>' +
       '<div class="form"><button class="btn" data-a="exportAll">Save backup file</button>' +
       '<label class="btn ghost" for="imp">Restore from backup…</label><input id="imp" type="file" accept=".json,application/json" class="sr" data-import="1"></div>' +
       (DB.usingFallback() ? '<p class="note">Note: this browser is using basic storage (localStorage). Keep backups.</p>' : ''));
@@ -1646,7 +1775,7 @@
   actions.removeSample = function () {
     if (ui.armed !== 'rmSample') { ui.armed = 'rmSample'; return render(); }
     ui.armed = null;
-    games.filter(function (g) { return g.sample; }).forEach(function (g) { DB.deleteGame(g.id); });
+    games.filter(function (g) { return g.sample; }).forEach(function (g) { removeGame(g.id); });
     games = games.filter(function (g) { return !g.sample; });
     meta.players = meta.players.filter(function (p) { return !p.sample; });
     meta.schedule = meta.schedule.filter(function (s) { return !s.sample; });
@@ -1654,6 +1783,24 @@
     toast('Sample data removed.');
     render();
   };
+  // Cloud sign-in (see startCloud)
+  actions.signIn = function () {
+    Cloud.signIn()['catch'](function (e) {
+      var code = (e && e.code) || '';
+      if (/popup-closed|cancelled-popup/.test(code)) return;
+      showGate('signin', '', /network/.test(code) ? 'No internet connection. Connect to Wi-Fi to sign in the first time.'
+        : /unauthorized-domain/.test(code) ? 'This address isn’t set up for sign-in yet (Firebase → Authentication → Settings → Authorized domains).'
+        : 'Sign-in didn’t work (' + code + ').');
+    });
+  };
+  actions.signInOther = function () { Cloud.signOut().then(function () { actions.signIn(); }); };
+  actions.reload = function () { location.reload(); };
+  actions.signOut = function () {
+    if (ui.armed !== 'signout') { ui.armed = 'signout'; return render(); }
+    ui.armed = null;
+    Cloud.signOut();
+  };
+
   actions.checkUpdate = function () {
     if (!swReg) { toast('Updates only apply to the https address, where they’re checked automatically.'); return; }
     ui.reloadOnUpdate = true;
@@ -1728,13 +1875,13 @@
     if (ui.armed !== 'del' + g.id) { ui.armed = 'del' + g.id; return render(); }
     ui.armed = null;
     games = games.filter(function (x) { return x.id !== g.id; });
-    DB.deleteGame(g.id);
+    removeGame(g.id);
     toast('Game deleted.');
     go('#home');
   };
 
   // ---------- event wiring ----------
-  var TWO_TAP = { rmEvent: 1, rmPlayer: 1, removeSample: 1, deleteGame: 1, rmSched: 1 };
+  var TWO_TAP = { rmEvent: 1, rmPlayer: 1, removeSample: 1, deleteGame: 1, rmSched: 1, signOut: 1 };
   function closest(el, attr) {
     while (el && el !== document) { if (el.getAttribute && el.getAttribute(attr) !== null) return el; el = el.parentNode; }
     return null;
@@ -1844,6 +1991,12 @@
         if (err) return toast('Restore failed: ' + err);
         meta = data.meta; games = data.games;
         meta.schedule = meta.schedule || [];
+        // The restored copy becomes the cloud copy too.
+        if (syncing) {
+          meta.updated = Date.now();
+          games.forEach(function (g) { g.updated = Date.now(); g.synced = true; });
+          Cloud.replaceAll(meta, games);
+        }
         applyTheme();
         toast('Restored ' + games.length + ' games.');
         go('#home');

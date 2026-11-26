@@ -2,3 +2,5 @@
 node_modules/
 worker/.wrangler/
 *.log
+firebase-debug.log
+.firebase/

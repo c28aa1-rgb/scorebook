@@ -1,0 +1,19 @@
+rules_version = '2';
+
+// Only the scorebook's owner, signed in with Google, can read or write anything.
+// Add more addresses to the list to share access.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function allowed() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['c28aa1@dalton.org'];
+    }
+    match /books/{book} {
+      allow read, write: if allowed();
+    }
+    match /books/{book}/{rest=**} {
+      allow read, write: if allowed();
+    }
+  }
+}
