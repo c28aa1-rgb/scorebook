@@ -59,6 +59,15 @@
     return ((p.first || '') + (p.last ? ' ' + p.last.charAt(0) + '.' : '')).trim();
   }
 
+  // Jersey number, or the player's initials while they don't have one yet (jerseys not handed out).
+  function jerseyOf(p) {
+    if (!p) return '?';
+    if (p.num) return p.num;
+    return ((p.first || '').charAt(0) + (p.last || '').charAt(0)).toUpperCase() || '–';
+  }
+  // "#12 Sam K.", or just "Sam K." with no number yet.
+  function pTag(p) { return p ? (p.num ? '#' + p.num + ' ' : '') + shortName(p) : ''; }
+
   // Test mode: try anything without keeping it. Changes live only in memory (nothing is saved on
   // the tablet or synced, and changes from other tablets are ignored), so a reload brings back the
   // real data. Deliberately not remembered across reloads.
@@ -236,6 +245,19 @@
       setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 400);
     }, reduce ? 0 : Math.max(0, 2500 - since));
   }
+
+  // Reloading or closing mid-game asks first (an accidental pull-to-refresh or reload button tap).
+  // Reloads the app does on purpose (Exit test mode, updates, sign-in) skip the question.
+  var leavingOnPurpose = false;
+  function reloadNow() { leavingOnPurpose = true; location.reload(); }
+  window.addEventListener('beforeunload', function (e) {
+    if (leavingOnPurpose || route.name !== 'game') return;
+    var g = gameById(route.id);
+    if (!g || g.status !== 'live') return;
+    e.preventDefault();
+    e.returnValue = 'Leave the game? Everything scored so far is saved.';
+    return e.returnValue;
+  });
 
   function boot() {
     DB.open(function () {
@@ -428,6 +450,8 @@
     if (gate) { showGate(gate.kind, gate.detail, gate.msg); return; }
     var fn = screens[route.name] || screens.home;
     app.innerHTML = route.name === 'game' ? fn() : '<div class="pg">' + fn() + '</div>';
+    // No pull-to-refresh on the live screen, where a downward swipe is easy to make by accident.
+    document.documentElement.classList.toggle('in-game', route.name === 'game');
     if (route.name === 'game' && ui.flash) {
       var el = app.querySelector('[data-flash="1"]');
       ui.flash = null;
@@ -449,7 +473,7 @@
     var who, staff = { hc: 'head coach', ac: 'assistant coach', team: 'team' };
     if (e.t === 'foul' && staff[e.w]) return (e.tm === 'us' ? meta.team.name : (g.opponent || 'Opponent')) + ' — technical on the ' + staff[e.w];
     if (e.t === 'timeout') who = e.tm === 'us' ? meta.team.name : (g.opponent || 'Opponent');
-    else if (e.tm === 'us') { var p = player(e.p) || R.findPlayer(g, meta, e.p); who = p ? '#' + p.num + ' ' + shortName(p) : 'Player'; }
+    else if (e.tm === 'us') { var p = player(e.p) || R.findPlayer(g, meta, e.p); who = p ? pTag(p) : 'Player'; }
     else who = e.p ? (g.opponent || 'Opp') + ' #' + e.p : (g.opponent || 'Opponent');
     var what = {
       make: { 1: 'made free throw', 2: 'made 2', 3: 'made 3' },
@@ -575,7 +599,7 @@
       if (!rows.length) h.push('<p class="none">—</p>');
       else h.push('<ol>' + rows.slice(0, 3).map(function (x) {
         var v = cat.pm ? C.fmtPm(x.v) : cat.whole ? String(x.v) : x.v.toFixed(1);
-        return '<li><button data-a="go" data-x="#player/' + x.p.id + '"><span class="jr">' + esc(x.p.num) + '</span>' +
+        return '<li><button data-a="go" data-x="#player/' + x.p.id + '"><span class="jr">' + esc(jerseyOf(x.p)) + '</span>' +
           esc(shortName(x.p)) + '<b>' + v + '</b></button></li>';
       }).join('') + '</ol>');
       h.push('</div>');
@@ -592,7 +616,7 @@
       '<th>PTS</th><th>PPG</th><th>REB</th><th>RPG</th><th>AST</th><th>STL</th><th>CHG</th><th>TO</th><th>FG%</th><th>3P%</th><th>FT%</th><th>PF</th><th>+/−</th></tr></thead><tbody>'];
     ps.forEach(function (p) {
       var row = s.players[p.id] || { gp: 0, line: C.emptyLine(), pm: 0, pmGp: 0 }, l = row.line, reb = l.oreb + l.dreb;
-      h.push('<tr class="tap" data-a="go" data-x="#player/' + p.id + '"><td class="l b">' + esc(p.num) + '</td><td class="l nm">' + esc(shortName(p)) + '</td><td>' + row.gp +
+      h.push('<tr class="tap" data-a="go" data-x="#player/' + p.id + '"><td class="l b">' + esc(jerseyOf(p)) + '</td><td class="l nm">' + esc(shortName(p)) + '</td><td>' + row.gp +
         '</td><td>' + l.pts + '</td><td class="b">' + avg(l.pts, row.gp) + '</td><td>' + reb + '</td><td>' + avg(reb, row.gp) +
         '</td><td>' + l.ast + '</td><td>' + l.stl + '</td><td>' + (l.chg || 0) + '</td><td>' + l.to + '</td><td>' + C.showPct(on.fg, l.fgm, l.fga) + '</td><td>' +
         C.showPct(on.tp, l.tpm, l.tpa) + '</td><td>' + C.showPct(on.ft, l.ftm, l.fta) + '</td><td>' + l.pf + '</td><td>' +
@@ -609,7 +633,7 @@
     var finals = seasonFinals();
     var s = C.computeSeason(finals, seasonPlayers()), r = s.players[p.id] || { gp: 0, line: C.emptyLine(), pm: 0, pmGp: 0, games: [] };
     var on = C.pctShown(meta.settings), t = r.line, gp = r.gp;
-    var h = [pageHead('#' + p.num + ' ' + ((p.first || '') + ' ' + (p.last || '')).trim() + ' · ' + season.name, backBtn('#home', 'Home'), '')];
+    var h = [pageHead((p.num ? '#' + p.num + ' ' : '') + ((p.first || '') + ' ' + (p.last || '')).trim() + ' · ' + season.name, backBtn('#home', 'Home'), '')];
     h.push('<div class="pg-bd">');
     h.push('<div class="record">' + [
       [gp, 'Games'], [avg(t.pts, gp), 'Pts / game'], [avg(t.oreb + t.dreb, gp), 'Reb / game'], [avg(t.ast, gp), 'Ast / game'],
@@ -662,12 +686,12 @@
         ? '<button class="btn sm ghost" data-a="go" data-x="#report/' + g.id + '">' + (g.type === 'scrimmage' ? 'Scrimmage ' : c.score.us > c.score.them ? 'W ' : c.score.us < c.score.them ? 'L ' : 'T ') + c.score.us + '–' + c.score.them + '</button>'
         : '<button class="btn sm pri" data-a="go" data-x="#game/' + g.id + '">Resume ' + c.score.us + '–' + c.score.them + '</button>';
     } else {
-      right = '<button class="btn sm pri" data-a="startScheduled" data-x="' + x.id + '">Start game</button>';
+      right = '<button class="btn sm pri" data-a="startScheduled" data-x="' + x.id + '">' + (x.type === 'scrimmage' ? 'Start scrimmage' : 'Start game') + '</button>';
     }
     var armed = ui.armed === 'sch' + x.id;
     return '<li class="sch-row"><span class="sch-when"><b>' + esc(R.fmtDate(x.date).replace(/, \d{4}$/, '')) + '</b><small>' + esc(weekday(x.date)) +
       (x.time ? ' · ' + esc(x.time) : '') + '</small></span><span class="op">' + (x.homeAway === 'away' ? '@ ' : 'vs ') + esc(x.opponent) +
-      (x.location ? '<small>' + esc(x.location) + '</small>' : '') + '</span>' + right +
+      (x.type === 'scrimmage' ? ' <span class="tag-scrim">Scrimmage</span>' : '') + (x.location ? '<small>' + esc(x.location) + '</small>' : '') + '</span>' + right +
       (full ? '<button class="btn sm danger' + (armed ? ' armed' : '') + '" data-a="rmSched" data-x="' + x.id + '">' + (armed ? 'Confirm' : 'Remove') + '</button>' : '') + '</li>';
   }
 
@@ -742,10 +766,11 @@
     h.push('<div class="pg-bd">');
     h.push('<h2>Add a player</h2>');
     h.push('<form class="form" data-form="addPlayer">' +
-      '<div class="fld xs"><label for="np-num">Jersey</label><input id="np-num" name="num" inputmode="numeric" maxlength="2" autocomplete="off" required></div>' +
+      '<div class="fld xs"><label for="np-num">Jersey</label><input id="np-num" name="num" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="later"></div>' +
       '<div class="fld"><label for="np-first">First name</label><input id="np-first" name="first" autocomplete="off" required></div>' +
       '<div class="fld"><label for="np-last">Last name</label><input id="np-last" name="last" autocomplete="off"></div>' +
-      '<div class="fld xs"><span class="lab">&nbsp;</span><button class="btn pri" type="submit">Add</button></div></form>');
+      '<div class="fld xs"><span class="lab">&nbsp;</span><button class="btn pri" type="submit">Add</button></div></form>' +
+      '<p class="note">No jerseys yet? Leave Jersey blank: the player shows with their initials until you type the number in below, and games already played pick it up too.</p>');
     h.push('<h2>' + ps.length + ' players</h2>');
     if (!ps.length) {
       var prev = meta.seasons.filter(function (s) { return s.id !== meta.currentSeasonId; });
@@ -754,7 +779,7 @@
     }
     h.push('<ul class="roster">');
     ps.forEach(function (p) {
-      h.push('<li><input class="rn" value="' + esc(p.num) + '" maxlength="2" inputmode="numeric" data-edit="num" data-x="' + p.id + '" aria-label="Jersey">' +
+      h.push('<li><input class="rn" value="' + esc(p.num) + '" placeholder="–" maxlength="2" inputmode="numeric" data-edit="num" data-x="' + p.id + '" aria-label="Jersey">' +
         '<input class="rf" value="' + esc(p.first) + '" data-edit="first" data-x="' + p.id + '" aria-label="First name">' +
         '<input class="rl" value="' + esc(p.last) + '" data-edit="last" data-x="' + p.id + '" aria-label="Last name">' +
         '<button class="btn sm danger' + (ui.armed === 'rm' + p.id ? ' armed' : '') + '" data-a="rmPlayer" data-x="' + p.id + '">' +
@@ -793,10 +818,12 @@
     h.push('<h2>Starters · ' + draft.starters.length + ' of 5</h2><div class="pick">');
     ps.forEach(function (p) {
       var on = draft.starters.indexOf(p.id) >= 0;
-      h.push('<button class="bp' + (on ? ' on' : '') + '" data-a="draftStarter" data-x="' + p.id + '"><span class="num">' + esc(p.num) +
+      h.push('<button class="bp' + (on ? ' on' : '') + '" data-a="draftStarter" data-x="' + p.id + '"><span class="num">' + esc(jerseyOf(p)) +
         '</span><span>' + esc(shortName(p)) + '</span></button>');
     });
     h.push('</div>');
+    var noNum = ps.filter(function (p) { return !p.num; }).length;
+    if (noNum) h.push('<p class="note">' + (noNum === 1 ? '1 player doesn’t' : noNum + ' players don’t') + ' have a jersey number yet, so they show with initials. Add numbers in Roster whenever you have them; this game updates too.</p>');
     if (draft.type === 'scrimmage') {
       // Quick setup: the usual choices up front, everything else under More options.
       var sr = draft.rules;
@@ -931,7 +958,7 @@
       var cls = 'card' + (ui.sel === id ? ' sel' : '') + (st === 'warn' ? ' warn' : '') + (st === 'out' ? ' out' : '') +
         (ui.flash === id ? ' hit' : '');
       h.push('<button class="' + cls + '" data-a="pick" data-x="' + id + '"' + (ui.flash === id ? ' data-flash="1"' : '') + '>' +
-        '<span class="jr">' + esc(p.num) + '</span><span class="nm"><b>' + esc(shortName(p)) + '</b><small>FG ' + l.fgm + '/' + l.fga +
+        '<span class="jr">' + esc(jerseyOf(p)) + '</span><span class="nm"><b>' + esc(shortName(p)) + '</b><small>FG ' + l.fgm + '/' + l.fga +
         ' · 3P ' + l.tpm + '/' + l.tpa + ' · FT ' + l.ftm + '/' + l.fta + ' · REB ' + (l.oreb + l.dreb) + '</small></span>' +
         '<span class="' + (st === 'warn' ? 'warn' : st === 'out' ? 'out' : '') + '">' + outTag(l, c.rules) +
         foulBoxes(l.pf, c.rules, l.tf) + '</span><span class="pts">' + l.pts + '<small>PTS</small></span></button>');
@@ -995,7 +1022,7 @@
       var h = ['<div class="pad-head ask"><span class="lbl">' + label + '</span>'];
       list.forEach(function (id) {
         var p = player(id) || {};
-        h.push('<button class="qk" data-a="promptPick" data-x="' + id + '">' + esc(p.num) + '</button>');
+        h.push('<button class="qk" data-a="promptPick" data-x="' + id + '">' + esc(jerseyOf(p)) + '</button>');
       });
       if (pr.k === 'reb') h.push('<button class="qk" data-a="promptPick" data-x="them" style="font-family:var(--f-body);font-size:.8rem">Theirs</button>');
       h.push('<button class="qk no" data-a="promptSkip">' + (pr.k === 'ast' ? 'No assist' : 'Skip') + '</button></div>');
@@ -1004,7 +1031,7 @@
     if (ui.msg) return '<div class="pad-head msg"><span class="lbl">' + esc(ui.msg) + '</span></div>';
     if (ui.side === 'us') {
       var p = ui.sel ? player(ui.sel) : null;
-      return '<div class="pad-head"><span class="lbl">' + (p ? '#' + esc(p.num) + ' ' + esc(shortName(p)) + ' <em>— what happened?</em>'
+      return '<div class="pad-head"><span class="lbl">' + (p ? esc(pTag(p)) + ' <em>— what happened?</em>'
         : '<em>Tap a player, then what they did · TECH now = coach or bench technical</em>') + '</span></div>';
     }
     return '<div class="pad-head"><span class="lbl">' + esc(g.opponent) + ' ' + (ui.oppSel ? '#' + esc(ui.oppSel) + ' <em>— what happened?</em>'
@@ -1082,7 +1109,7 @@
       var benchBtn = function (p, action) {
         var on = court.indexOf(p.id) >= 0, l = c.players[p.id] || C.emptyLine(), why = C.outReason(l, r);
         return '<button class="bp' + (on ? ' on' : '') + (why ? ' out' : '') + (pend && pend.id === p.id ? ' pend' : '') + '" data-a="' + action + '" data-x="' + p.id + '"' +
-          (!on && why ? ' disabled' : '') + '><span class="num">' + esc(p.num) + '</span><span>' + esc(shortName(p)) + '<small>' + l.pts + ' pts · ' + l.pf + ' PF' +
+          (!on && why ? ' disabled' : '') + '><span class="num">' + esc(jerseyOf(p)) + '</span><span>' + esc(shortName(p)) + '<small>' + l.pts + ' pts · ' + l.pf + ' PF' +
           (l.tf ? ' · ' + l.tf + 'T' : '') + (why ? (why === 'ejected' ? ' · EJECTED' : ' · OUT') : '') + '</small></span></button>';
       };
       if (d === 'replace') {
@@ -1090,24 +1117,33 @@
         return sheet('Who’s coming in for ' + subName(ui.subOut) + '?', h,
           '<button class="btn ghost" data-a="drawer" data-x="bench">Other subs</button><button class="btn" data-a="closeDrawer">Cancel</button>');
       }
-      var hint;
-      if (pend && pend.on) hint = '<b>' + esc(subName(pend.id)) + ' going out.</b> Tap who’s coming in, or tap them again to just take them off.';
-      else if (pend) hint = '<b>' + esc(subName(pend.id)) + ' coming in.</b> Tap who’s going out.';
-      else if (court.length < 5) hint = 'Tap bench players to put them in (' + (5 - court.length) + ' open spot' + (court.length === 4 ? '' : 's') + ').';
-      else hint = 'Tap who’s coming in and who’s going out, in either order. Make as many swaps as you need.';
-      h = '<p class="sub-hint' + (pend ? ' on' : '') + '">' + hint + '</p>' +
-        '<h4 class="bench-hd">On court · ' + court.length + ' of 5</h4><div class="bench">' +
-        court.map(function (id) { return benchBtn(player(id) || R.findPlayer(g, meta, id) || { id: id, num: '?' }, 'subTap'); }).join('') + '</div>' +
-        '<h4 class="bench-hd">Bench</h4><div class="bench">' + bench.map(function (p) { return benchBtn(p, 'subTap'); }).join('') + '</div>' +
+      // A draft of the next lineup: tap anyone in or out, in any order; nothing changes until Save,
+      // which needs a full five (or everyone still eligible, if fewer than five can play).
+      var lu = ui.lineup || court.slice(), need = lineupNeed(g, court), n = lu.length;
+      var mark = function (p) {
+        var picked = lu.indexOf(p.id) >= 0, wasOn = court.indexOf(p.id) >= 0, l = c.players[p.id] || C.emptyLine(), why = C.outReason(l, r);
+        var cls = picked ? ' on' : wasOn ? ' leaving' : '', note = picked && !wasOn ? 'Going in' : !picked && wasOn ? 'Coming off' : '';
+        return '<button class="bp' + cls + (why ? ' out' : '') + '" data-a="lineupTap" data-x="' + p.id + '"' + (!wasOn && why ? ' disabled' : '') +
+          '><span class="num">' + esc(jerseyOf(p)) + '</span><span>' + esc(shortName(p)) + '<small>' + (note ? '<b>' + note + '</b> · ' : '') +
+          l.pts + ' pts · ' + l.pf + ' PF' + (l.tf ? ' · ' + l.tf + 'T' : '') + (why ? (why === 'ejected' ? ' · EJECTED' : ' · OUT') : '') + '</small></span></button>';
+      };
+      var ok = n === need, changed = n !== court.length || lu.some(function (id) { return court.indexOf(id) < 0; });
+      var hint = ok ? (changed ? 'Lineup ready. Tap <b>Save lineup</b> to make the subs.' : 'Tap anyone to take them off or put them in, in any order. Nothing changes until you save.')
+        : n < need ? 'Pick <b>' + (need - n) + ' more</b> to make ' + need + ' on court.' : 'Take <b>' + (n - need) + ' off</b>: only ' + need + ' can be on court.';
+      h = '<p class="sub-hint' + (ok ? '' : ' on') + '">' + hint + '</p>' +
+        '<h4 class="bench-hd">On court now</h4><div class="bench">' +
+        court.map(function (id) { return mark(player(id) || R.findPlayer(g, meta, id) || { id: id, num: '?' }); }).join('') + '</div>' +
+        '<h4 class="bench-hd">Bench</h4><div class="bench">' + bench.map(mark).join('') + '</div>' +
         '<p class="note">Subs entered any time before the next point count exactly for plus/minus, so it’s fine to catch up during free throws.</p>';
-      return sheet('Substitutions', h, '<button class="btn pri" data-a="closeDrawer">Done</button>');
+      return sheet('Substitutions · ' + n + ' of ' + need + ' picked', h, '<button class="btn ghost" data-a="closeDrawer">Cancel</button>' +
+        '<button class="btn pri" data-a="lineupSave"' + (ok ? '' : ' disabled') + '>' + (changed || !ok ? 'Save lineup' : 'Done') + '</button>');
     }
     if (d === 'tech-us' || d === 'tech-them') {
       var ttm = d.slice(5), tname = ttm === 'us' ? meta.team.name : g.opponent, cs = C.coachStatus(c.staff[ttm], r);
       if (ui.techBench) {
         // Bench player: ours are everyone not on the court; theirs are the numbers entered so far.
         var who = ttm === 'us'
-          ? seasonPlayers().filter(function (p) { return g.onCourt.indexOf(p.id) < 0; }).map(function (p) { return [p.id, p.num, shortName(p)]; })
+          ? seasonPlayers().filter(function (p) { return g.onCourt.indexOf(p.id) < 0; }).map(function (p) { return [p.id, jerseyOf(p), shortName(p)]; })
           : (g.oppNums || []).slice().sort(function (a, b) { return R.byJersey({ num: a }, { num: b }); }).map(function (n) { return [n, n, '']; });
         h = '<div class="bench">' + who.map(function (w) {
           return '<button class="bp" data-a="techTo" data-x="' + ttm + ':bench:' + esc(w[0]) + '"><span class="num">' + esc(w[1]) + '</span><span>' + esc(w[2]) + '</span></button>';
@@ -1386,7 +1422,7 @@
     else if (t === 'make' && v === 1) askFreeThrow(g, e);
     if (t === 'foul') {
       var after = C.computeGame(g), p = player(ui.sel);
-      var notes = [foulNotice('#' + p.num + ' ' + shortName(p), after.players[ui.sel], after.rules, v === 't', true)];
+      var notes = [foulNotice(pTag(p), after.players[ui.sel], after.rules, v === 't', true)];
       if (after.shooting.them && after.currentFouls.us === after.rules.bonusAt - 1) notes.push(g.opponent + ' shoot on the next foul (bonus).');
       notes = notes.filter(Boolean);
       if (notes.length) toast(notes.join(' '), notes.length > 1 || C.outReason(after.players[ui.sel], after.rules) ? 5000 : 0);
@@ -1614,32 +1650,52 @@
     saveGame(g);
   }
 
-  function subName(id) { var p = player(id) || {}; return '#' + p.num + ' ' + shortName(p); }
+  function subName(id) { return pTag(player(id) || {}); }
 
-  // Subs sheet: tap who's coming in and who's going out, in either order; the pair is swapped.
-  // With an open spot, a bench tap puts the player straight in. Tapping a picked on-court player
-  // again takes them off without a replacement.
-  actions.subTap = function (x) {
-    var g = gameById(route.id), on = g.onCourt.indexOf(x) >= 0, pend = ui.pendSub;
-    if (!on && blockedFromCourt(g, x)) return;
-    if (pend && pend.id === x) {
-      ui.pendSub = null;
-      if (on) takeOff(g, x);
-    } else if (pend && pend.on !== on) {
-      swapPlayers(g, on ? x : pend.id, on ? pend.id : x);
-      ui.pendSub = null;
-    } else if (!on && g.onCourt.length < 5) {
-      putIn(g, x);
-    } else {
-      ui.pendSub = { id: x, on: on };
+  // How many the lineup must have to save: five, or fewer when not enough players can still play.
+  function lineupNeed(g, court) {
+    var c = C.computeGame(g), able = court.length;
+    seasonPlayers().forEach(function (p) {
+      if (court.indexOf(p.id) < 0 && !C.outReason(c.players[p.id] || C.emptyLine(), c.rules)) able++;
+    });
+    return Math.min(5, able);
+  }
+
+  // Subs sheet: a draft of the next lineup. Tap anyone to put them in or take them off, in any
+  // order and with any count along the way; Save makes the subs once the lineup is full.
+  actions.lineupTap = function (x) {
+    var g = gameById(route.id), lu = ui.lineup || (ui.lineup = g.onCourt.filter(Boolean)), i = lu.indexOf(x);
+    if (i >= 0) lu.splice(i, 1);
+    else if (g.onCourt.indexOf(x) >= 0 || !blockedFromCourt(g, x)) lu.push(x);
+    else return;
+    render();
+  };
+
+  // '#12', or the name for a player with no number yet.
+  function shortTag(id) { var p = player(id) || {}; return p.num ? '#' + p.num : shortName(p); }
+
+  // Each player coming in takes the card spot of one going off (in the order they were tapped),
+  // so the rest of the lineup stays where it is on screen.
+  actions.lineupSave = function () {
+    var g = gameById(route.id), court = g.onCourt.filter(Boolean), lu = ui.lineup || court;
+    if (lu.length !== lineupNeed(g, court)) return;
+    var outs = court.filter(function (id) { return lu.indexOf(id) < 0; }), ins = lu.filter(function (id) { return court.indexOf(id) < 0; });
+    outs.forEach(function (id, k) { if (k < ins.length) swapPlayers(g, id, ins[k]); else takeOff(g, id); });
+    ins.slice(outs.length).forEach(function (id) { putIn(g, id); });
+    if (ins.length || outs.length) {
+      toast(ins.length && outs.length && ins.length === outs.length
+        ? ins.map(function (id, k) { return shortTag(id) + ' in for ' + shortTag(outs[k]); }).join(' · ')
+        : (ins.length ? 'In: ' + ins.map(function (id) { return subName(id); }).join(', ') : '') +
+          (ins.length && outs.length ? ' · ' : '') + (outs.length ? 'Off: ' + outs.map(function (id) { return subName(id); }).join(', ') : ''));
     }
+    ui.drawer = null; ui.lineup = null;
     render();
   };
 
   // SUB key on the pad: with one of our players picked, go straight to "who replaces them?".
   actions.subKey = function () {
     var g = gameById(route.id);
-    ui.pendSub = null;
+    ui.pendSub = null; ui.lineup = null;
     if (ui.sel && g.onCourt.indexOf(ui.sel) >= 0) { ui.subOut = ui.sel; ui.drawer = 'replace'; }
     else ui.drawer = 'bench';
     render();
@@ -1657,11 +1713,11 @@
     // 'keypad-chg' is the number keypad opened from the charge sheet: the number gets the offensive foul.
     ui.kpFor = x === 'keypad-chg' ? 'chg' : null;
     if (x === 'keypad-chg') x = 'keypad';
-    ui.drawer = x; ui.prompt = null; ui.armed = null; ui.pendSub = null; ui.techBench = false;
+    ui.drawer = x; ui.prompt = null; ui.armed = null; ui.pendSub = null; ui.techBench = false; ui.lineup = null;
     if (x === 'keypad') ui.kp = '';
     render();
   };
-  actions.closeDrawer = function () { ui.drawer = null; ui.armed = null; ui.kpFor = null; ui.pendSub = null; ui.subOut = null; ui.techBench = false; render(); };
+  actions.closeDrawer = function () { ui.drawer = null; ui.armed = null; ui.kpFor = null; ui.pendSub = null; ui.subOut = null; ui.techBench = false; ui.lineup = null; render(); };
 
   // Technicals off the court (team name, then TECH): head coach, assistant, a bench player or the team.
   actions.techBenchPick = function () { ui.techBench = true; render(); };
@@ -1741,7 +1797,9 @@
   // Opens New game filled in from the schedule; starting it marks the entry as played.
   actions.startScheduled = function (x) {
     var s = find(meta.schedule, x);
-    draft = { opponent: s.opponent, date: s.date < today() ? today() : s.date, location: s.location, homeAway: s.homeAway, starters: [], schedId: s.id };
+    // 'TBD' (a tournament game whose opponent isn't known yet) leaves the opponent for you to fill in.
+    draft = { opponent: /^tbd$/i.test(s.opponent) ? '' : s.opponent, date: s.date < today() ? today() : s.date, location: s.location, homeAway: s.homeAway, starters: [], schedId: s.id };
+    if (s.type === 'scrimmage') { draft.type = 'scrimmage'; draft.rules = C.copyRules(meta.settings.scrimRules || C.scrimmageRules(meta.settings.rules)); }
     go('#new');
   };
 
@@ -1836,13 +1894,13 @@
     var bar = document.createElement('div');
     bar.id = 'testbar';
     bar.innerHTML = '<span>TEST MODE · nothing is saved</span><button type="button">Exit</button>';
-    bar.querySelector('button').onclick = function () { location.reload(); };
+    bar.querySelector('button').onclick = function () { reloadNow(); };
     document.body.appendChild(bar);
     if (x === 'sample') { actions.loadSample(); return; }
     toast('Test mode is on. Nothing you do now is saved.');
     go('#home');
   };
-  actions.testExit = function () { location.reload(); };
+  actions.testExit = function () { reloadNow(); };
   actions.removeSample = function () {
     if (ui.armed !== 'rmSample') { ui.armed = 'rmSample'; return render(); }
     ui.armed = null;
@@ -1865,7 +1923,7 @@
     });
   };
   actions.signInOther = function () { Cloud.signOut().then(function () { actions.signIn(); }); };
-  actions.reload = function () { location.reload(); };
+  actions.reload = function () { reloadNow(); };
   actions.signOut = function () {
     if (ui.armed !== 'signout') { ui.armed = 'signout'; return render(); }
     ui.armed = null;
@@ -2042,8 +2100,8 @@
     }
     if (f.getAttribute('data-form') === 'addPlayer') {
       var num = f.num.value.trim(), first = f.first.value.trim(), last = f.last.value.trim();
-      if (!num || !first) return;
-      if (seasonPlayers().some(function (p) { return p.num === num; })) { toast('Jersey #' + num + ' is already on the roster.'); return; }
+      if (!first) return;
+      if (num && seasonPlayers().some(function (p) { return p.num === num; })) { toast('Jersey #' + num + ' is already on the roster.'); return; }
       meta.players.push({ id: uid(), seasonId: meta.currentSeasonId, num: num, first: first, last: last });
       saveMeta();
       render();
@@ -2087,7 +2145,7 @@
       reg.update()['catch'](function () {});
     })['catch'](function () {});
     navigator.serviceWorker.addEventListener('controllerchange', function () {
-      if (ui.reloadOnUpdate) { location.reload(); return; }
+      if (ui.reloadOnUpdate) { reloadNow(); return; }
       if (hadController) toast('A new version is ready. Reload the page to use it.', 6000);
       hadController = true;
       askVersion();

@@ -25,12 +25,15 @@ working on that device.
   countdown (1:00 or 0:30) runs in the bottom bar and turns red at zero. Tap it to end early.
 - **Period button:** end the quarter, go to OT, go back to fix a mistake, or end the game.
 - **Undo** removes the last entry. **Play log** lets you remove any earlier entry.
+- **Reloading mid-game** (reload button, pull-to-refresh) asks first; pull-to-refresh is also turned off on
+  the live screen. Everything is saved either way. (Safari on iPad doesn't show this question.)
 - **Subs, one at a time:** tap the player coming off, then **SUB**, then who's coming in (3 taps). The new
   player takes the same spot on screen.
-- **Subs, several at once:** open **Subs** and tap who's coming in and who's going out, in either order;
-  each pair is swapped (the waiting half shows in amber). Tap an on-court player twice to take them off
-  with no replacement; with an open spot, one tap on a bench player puts them in. Fouled-out and ejected
-  players can't go back in.
+- **Subs, several at once:** open **Subs** and tap anyone to take them off (dashed amber) or put them in
+  (blue), in any order and with any count along the way. Nothing changes until **Save lineup**, which only
+  works with exactly five picked (or everyone still eligible, if fewer than five can play); **Cancel**
+  throws the changes away. Each player going in takes the card spot of one coming off, in the order tapped.
+  Fouled-out and ejected players can't go back in.
 - Subs are recorded in the play log (that's how plus/minus is worked out). Any sub entered before the next
   point counts exactly, so it's fine to catch up during free throws. **Undo** skips over subs; fix a wrong
   one in the Subs sheet or remove it from the play log.
@@ -82,6 +85,12 @@ The next three games show under **Up next** on the home screen; **Start game** o
 opponent, date, place and home/away filled in, and the schedule then shows Resume or the final score.
 
 On New game you can also type the opponent's jersey numbers so their column is ready at tip-off.
+Schedule entries can be scrimmages (Start scrimmage opens the scrimmage setup) or have the opponent
+`TBD` (tournaments), which leaves the opponent blank on New game.
+
+**No jerseys yet?** On Roster, leave Jersey blank. The player shows with their initials (cards, subs,
+running score) and by name elsewhere; type the number in on Roster later and every game, including ones
+already played, shows it.
 
 ## Test mode
 

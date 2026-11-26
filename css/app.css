@@ -528,3 +528,10 @@ table.st tr.tot td { font-weight: 700; border-top: 2px solid var(--ledger); }
   .rpt-wrap { padding: 0; }
   .rpt-wrap .rpt { border: 0; }
 }
+
+/* No pull-to-refresh during a game (the page itself never scrolls there). */
+html.in-game, html.in-game body { overscroll-behavior-y: none; }
+
+/* Subs sheet: a player who will come off when the lineup is saved. */
+.bp.leaving { border-style: dashed; border-color: var(--warn); background: var(--warn-soft); color: var(--ink2); }
+.bp span small b { font-weight: 700; }

@@ -78,7 +78,8 @@
   // names: 'jersey' | 'first' (first name + last initial) | 'full'
   function playerName(p, names) {
     if (!p) return '';
-    if (names === 'jersey') return '';
+    // Jersey-only reports still need a name for a player who has no number yet.
+    if (names === 'jersey' && p.num) return '';
     if (names === 'full') return ((p.first || '') + ' ' + (p.last || '')).trim();
     return ((p.first || '') + (p.last ? ' ' + p.last.charAt(0) + '.' : '')).trim();
   }
@@ -94,8 +95,19 @@
   function byJersey(a, b) {
     var na = parseInt(a.num, 10), nb = parseInt(b.num, 10);
     if (isNaN(na)) na = 999; if (isNaN(nb)) nb = 999;
-    return na - nb || String(a.num).length - String(b.num).length;
+    return na - nb || String(a.num).length - String(b.num).length || nameKey(a).localeCompare(nameKey(b));
   }
+
+  function nameKey(x) { var p = x.p || x; return String((p.first || '') + ' ' + (p.last || '')); }
+
+  // Jersey number, or initials for a player who doesn't have one yet.
+  function jerseyText(p) {
+    if (!p) return '?';
+    if (p.num) return p.num;
+    return ((p.first || '').charAt(0) + (p.last || '').charAt(0)).toUpperCase() || '–';
+  }
+  // '#12 ' (with the space), or '' with no number.
+  function hashNum(p) { return p && p.num ? '#' + p.num + ' ' : ''; }
 
   function fmtDate(iso) {
     if (!iso) return '';
@@ -118,7 +130,7 @@
     (game.appeared || []).concat(Object.keys(c.players)).forEach(function (id) {
       if (seen[id]) return; seen[id] = true;
       var p = findPlayer(game, meta, id);
-      out.push({ id: id, num: p ? p.num : '?', p: p, line: c.players[id] || C.emptyLine() });
+      out.push({ id: id, num: jerseyText(p), p: p, line: c.players[id] || C.emptyLine() });
     });
     return out.sort(byJersey);
   }
@@ -230,7 +242,7 @@
         (t.v === 'short' ? ' (30s)' : '');
     });
     function item(k, v) { return '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>'; }
-    var topName = top && top.line.pts ? '#' + esc(top.num) + ' ' + esc(playerName(top.p, names)) + ' — ' + top.line.pts : '—';
+    var topName = top && top.line.pts ? (esc(hashNum(top.p)) + esc(playerName(top.p, names))).trim() + ' — ' + top.line.pts : '—';
     return '<dl>' +
       item('Top scorer', topName) +
       item('Lead changes', f.leadChanges) +
@@ -260,7 +272,7 @@
       tot[e.tm] += e.v;
       // Shooting-foul points (scrimmage rule) get a green slash, so they aren't mistaken for a basket.
       for (var n = start; n <= tot[e.tm]; n++) cells[e.tm][n] = { v: e.t === 'award' ? 'a' : e.v, last: n === tot[e.tm] };
-      var jr = e.tm === 'us' ? (findPlayer(game, meta, e.p) || {}).num : e.p;
+      var jr = e.tm === 'us' ? jerseyText(findPlayer(game, meta, e.p)) : e.p;
       cells[e.tm][tot[e.tm]].jr = jr || '';
     }
     var max = Math.max(tot.us, tot.them, 40);
@@ -352,7 +364,7 @@
     boxPlayers(game, meta, c).forEach(function (r) {
       if (!r.line.pts && !(r.line.oreb + r.line.dreb) && !r.line.ast && !r.line.chg) return;
       var nm = playerName(r.p, names);
-      lines.push('#' + r.num + (nm ? ' ' + nm : '') + ' — ' + r.line.pts + ' pts, ' + (r.line.oreb + r.line.dreb) +
+      lines.push((hashNum(r.p) + nm).trim() + ' — ' + r.line.pts + ' pts, ' + (r.line.oreb + r.line.dreb) +
         ' reb, ' + r.line.ast + ' ast' + (r.line.chg ? ', ' + r.line.chg + ' charge' + (r.line.chg > 1 ? 's' : '') + ' taken' : ''));
     });
     lines.push('');
