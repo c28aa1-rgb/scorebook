@@ -139,6 +139,11 @@ then to Firestore, so scoring never waits on the network; changes made offline u
 back online, and signing in on another tablet shows the same games. Settings → **Account and sync** shows
 the account, the sync state and **Sign out**. Backup files still work as an extra copy.
 
+The Firebase project is **daltrillion-admin** (shared with Daltrillion, which doesn't use Firestore; the
+scorebook is its own web app there, "Dalton Scorebook"). Google sign-in is enabled and
+c28aa1-rgb.github.io is an authorized domain, so sign-in works on the GitHub Pages address (not on
+localhost unless that's added under Authentication → Settings → Authorized domains).
+
 Data lives under `books/dalton` (roster, seasons, schedule, settings) and `books/dalton/games/{id}`.
 `firestore.rules` lets only the listed Google accounts read or write it; deploy it with
 `firebase deploy --only firestore:rules`. To give someone else access, add their address to both
