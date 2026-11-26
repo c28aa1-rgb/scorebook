@@ -80,7 +80,7 @@ test('season game logs and plus/minus totals', function () {
 test('custom rules: halves, fouls that never reset, double bonus', function () {
   var halves = SB.copyRules({ periods: 2, bonusReset: 'half', bonusAt: 7, doubleBonusAt: 10 });
   assert.strictEqual(SB.periodLabel(2, halves) + SB.periodLabel(3, halves), 'H2OT');
-  assert.strictEqual(SB.periodLabel(3, SB.copyRules({ periods: 3 })), 'P3');
+  assert.strictEqual(SB.periodLabel(3, SB.copyRules({ periods: 3 })), 'Q3');
   var evs = [];
   for (var i = 0; i < 7; i++) evs.push(ev(2, 'us', 'a', 'foul', 'p'));
   var c = SB.computeGame(game(evs, 2, halves));
@@ -94,6 +94,28 @@ test('custom rules: halves, fouls that never reset, double bonus', function () {
   var never = SB.copyRules({ bonusReset: 'game' });
   c = SB.computeGame(game([ev(1, 'us', 'a', 'foul', 'p'), ev(3, 'us', 'a', 'foul', 'p')], 4, never));
   assert.strictEqual(c.currentFouls.us, 2);
+});
+
+test('scrimmage rules', function () {
+  var r = SB.scrimmageRules(SB.copyRules());
+  // Shooting foul on a 2: 1 point awarded, then the free throw. On a 3: 2 awarded.
+  var evs = [ev(1, 'us', 'a', 'award', 1), ev(1, 'us', 'a', 'make', 1), ev(1, 'them', '4', 'award', 2), ev(1, 'them', '4', 'miss', 1),
+    ev(2, 'us', 'a', 'make', 2)];
+  for (var i = 0; i < 7; i++) evs.push(ev(2, 'us', 'b', 'foul', 'p'));
+  var c = SB.computeGame({ events: evs, quarter: 7, rules: r });
+  assert.strictEqual(c.score.us, 4);
+  assert.strictEqual(c.players.a.pts, 4);
+  assert.deepStrictEqual([c.players.a.fgm, c.players.a.fga, c.players.a.ftm], [1, 1, 1], 'awards are not shots');
+  assert.strictEqual(c.opp['4'].pts, 2);
+  // No foul-outs, no bonus, unlimited timeouts, quarters past 6 are still quarters.
+  assert.strictEqual(SB.outReason(c.players.b, r), '');
+  assert.strictEqual(SB.foulState(7, r, 0), 'ok');
+  assert.strictEqual(c.inBonus.them, false);
+  assert.strictEqual(c.timeoutsLeft.us.full, Infinity);
+  assert.strictEqual(SB.periodLabel(7, r), 'Q7');
+  // Each quarter scored on its own: Q1 tied 2–2, Q2 won 2–0; Q3–Q6 had no scoring.
+  assert.deepStrictEqual(c.periodsWon, { us: 1, them: 0, tied: 5 });
+  assert.strictEqual(SB.gameFlow(evs).biggestLead.us, 2);
 });
 
 test('timeouts per half', function () {

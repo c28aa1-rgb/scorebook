@@ -33,6 +33,7 @@
     '.rpt tr.pct td{border-bottom:0;color:var(--ink2);font-size:0.78rem;padding-top:0}',
     '.rpt td.dim{color:var(--ink2)}',
     '.rpt .line td.b{font-size:1.05rem}',
+    '.rpt .pw{margin:0.4rem 0 0;font-weight:700;font-size:0.85rem}',
     '.rpt-grid{display:flex;flex-wrap:wrap;gap:0 1.75rem}',
     '.rpt-grid>div{flex:1 1 16rem;min-width:0}',
     '.rpt dl{display:flex;flex-wrap:wrap;margin:0;font-size:0.85rem}',
@@ -141,17 +142,18 @@
     return 'Final' + (ot > 0 ? (ot === 1 ? ' / OT' : ' / ' + ot + 'OT') : '');
   }
 
+  // When each period is scored on its own, the winner of each period is bold and a "Won" column counts them.
   function lineScore(game, meta, c) {
     var h = ['<div class="tw"><table class="line"><thead><tr><th class="l">Team</th>'];
-    var i, f = foulsByPeriod(game, c.periods);
+    var i, f = foulsByPeriod(game, c.periods), sep = c.rules.scoreResets;
     for (i = 1; i <= c.periods; i++) h.push('<th>' + C.periodLabel(i, c.rules) + '</th>');
-    h.push('<th class="b">T</th><th>Fouls</th><th>TO</th></tr></thead><tbody>');
-    [['us', meta.team.name], ['them', oppName(game)]].forEach(function (row) {
-      var tm = row[0];
+    h.push((sep ? '<th class="b">Won</th>' : '') + '<th class="b">' + (sep ? 'Pts' : 'T') + '</th><th>Fouls</th><th>TO</th></tr></thead><tbody>');
+    [['us', meta.team.name, 'them'], ['them', oppName(game), 'us']].forEach(function (row) {
+      var tm = row[0], other = row[2];
       h.push('<tr><td class="l b">' + esc(row[1]) + '</td>');
-      for (i = 0; i < c.periods; i++) h.push('<td>' + c.byPeriod[tm][i] + '</td>');
+      for (i = 0; i < c.periods; i++) h.push('<td' + (sep && c.byPeriod[tm][i] > c.byPeriod[other][i] ? ' class="b"' : '') + '>' + c.byPeriod[tm][i] + '</td>');
       var tu = c.timeoutsUsed[tm];
-      h.push('<td class="b">' + c.score[tm] + '</td><td class="dim">' + f[tm].join(' · ') +
+      h.push((sep ? '<td class="b">' + c.periodsWon[tm] + '</td>' : '') + '<td class="b">' + c.score[tm] + '</td><td class="dim">' + f[tm].join(' · ') +
         '</td><td class="dim">' + (tu.full + tu.short) + '</td></tr>');
     });
     h.push('</tbody></table></div>');
@@ -233,10 +235,11 @@
         qEnd.us[tot.us] = true; qEnd.them[tot.them] = true;
         lastQ = e.q;
       }
-      if (e.t !== 'make') continue;
+      if (!C.points(e)) continue;
       var start = tot[e.tm] + 1;
       tot[e.tm] += e.v;
-      for (var n = start; n <= tot[e.tm]; n++) cells[e.tm][n] = { v: e.v, last: n === tot[e.tm] };
+      // Points awarded for a shooting foul are drawn as a slash, like a basket.
+      for (var n = start; n <= tot[e.tm]; n++) cells[e.tm][n] = { v: e.t === 'award' ? 2 : e.v, last: n === tot[e.tm] };
       var jr = e.tm === 'us' ? (findPlayer(game, meta, e.p) || {}).num : e.p;
       cells[e.tm][tot[e.tm]].jr = jr || '';
     }
@@ -267,7 +270,8 @@
     var names = opts.names || (meta.settings && meta.settings.names) || 'first';
     var c = C.computeGame(game);
     var us = c.score.us, them = c.score.them;
-    var status = game.status === 'final' ? resultWord(c, c.rules) : 'In progress · ' + C.periodLabel(c.quarter, c.rules);
+    var status = (game.type === 'scrimmage' ? 'Scrimmage · ' : '') +
+      (game.status === 'final' ? (game.type === 'scrimmage' ? 'Final' : resultWord(c, c.rules)) : 'In progress · ' + C.periodLabel(c.quarter, c.rules));
     var h = [];
     h.push('<article class="rpt">');
     h.push('<header class="rpt-hd"><div><div class="rpt-eyebrow">' + esc(status) + ' · ' +
@@ -277,6 +281,7 @@
       esc(oppName(game)) + '</span></h1></div>');
     h.push('<div class="rpt-meta"><b>' + esc(fmtDate(game.date)) + '</b>' + esc(game.location || '') + '</div></header>');
     h.push('<h2>Score by period</h2>' + lineScore(game, meta, c));
+    if (c.rules.scoreResets) h.push('<p class="pw">' + esc(periodsWonText(game, meta, c)) + '</p>');
     h.push('<h2>' + esc(meta.team.name) + '</h2>' + ourBox(game, meta, c, names));
     h.push('<div class="rpt-grid"><div><h2>' + esc(oppName(game)) + '</h2>' + oppBox(game, c) +
       '</div><div><h2>Game flow</h2>' + flowBlock(game, meta, c, names) + '</div></div>');
@@ -287,9 +292,16 @@
     return h.join('');
   }
 
+  // "Periods won: Dalton 4, Trinity 1, 1 tied (points 52–40)" for games scored period by period.
+  function periodsWonText(game, meta, c) {
+    var w = c.periodsWon, word = c.rules.periods === 2 ? 'Halves' : 'Quarters';
+    return word + ' won: ' + meta.team.name + ' ' + w.us + ', ' + oppName(game) + ' ' + w.them + (w.tied ? ', ' + w.tied + ' tied' : '') +
+      ' (total points ' + c.score.us + '–' + c.score.them + ')';
+  }
+
   function title(game, meta) {
     var c = C.computeGame(game);
-    return meta.team.name + ' ' + c.score.us + ', ' + oppName(game) + ' ' + c.score.them + ' — ' + fmtDate(game.date);
+    return (game.type === 'scrimmage' ? 'Scrimmage: ' : '') + meta.team.name + ' ' + c.score.us + ', ' + oppName(game) + ' ' + c.score.them + ' — ' + fmtDate(game.date);
   }
 
   function standalone(game, meta, opts) {
@@ -313,6 +325,7 @@
     lines.push('By period (' + hdr.join(' ') + ')');
     lines.push(meta.team.name + ': ' + c.byPeriod.us.join(' ') + ' = ' + c.score.us);
     lines.push(oppName(game) + ': ' + c.byPeriod.them.join(' ') + ' = ' + c.score.them);
+    if (c.rules.scoreResets) lines.push(periodsWonText(game, meta, c));
     lines.push('');
     lines.push('Scoring:');
     boxPlayers(game, meta, c).forEach(function (r) {

@@ -8,7 +8,9 @@
  *                t: type, v: value }
  * Types: 'make' (v 1|2|3), 'miss' (v 1|2|3), 'reb' (v 'o'|'d'), 'ast', 'stl',
  *        'blk', 'to', 'chg' (charge taken), 'foul' (v 'p'|'t'), 'timeout' (v 'full'|'short'),
- *        'sub' (v 'in'|'out'; only in games with subLog: true, which start from game.starters).
+ *        'sub' (v 'in'|'out'; only in games with subLog: true, which start from game.starters),
+ *        'award' (v 1|2: points given for a shooting foul under the scrimmage rule; counts as
+ *        points but not as a shot).
  */
 (function (root) {
   'use strict';
@@ -17,9 +19,9 @@
     name: 'NFHS (Ivy Prep)',
     periods: 4,
     periodMinutes: 8,
-    foulOut: 5,
+    foulOut: 5,            // 0 = players never foul out
     techOut: 2,            // technical fouls that eject a player (NFHS); 0 = no limit
-    bonusAt: 5,           // team foul number that starts free throws
+    bonusAt: 5,            // team foul number that starts free throws; 0 = no bonus
     doubleBonusAt: 0,      // team foul number for the double bonus (2 shots); 0 = none
     bonusReset: 'quarter', // team fouls reset: 'quarter' (each period) | 'half' | 'game' (never)
     otFoulsCarry: true,    // last period's team fouls carry into OT (NFHS)
@@ -28,7 +30,12 @@
     timeoutsReset: 'game', // timeout allotment is per 'game' or per 'half'
     otMinutes: 4,
     otTimeoutsFull: 1,
-    otTimeoutsShort: 0
+    otTimeoutsShort: 0,
+    // Mostly for scrimmages:
+    timeoutsUnlimited: false,
+    scoreResets: false,    // each period is scored on its own (the total is still kept)
+    openEnded: false,      // more periods can be added at any time; no overtime
+    shotFoulAward: false   // shooting foul: shot value − 1 awarded at once, then 1 free throw
   };
 
   function copyRules(r) {
@@ -38,16 +45,30 @@
     return out;
   }
 
-  // Q1–Q4 for quarters, H1–H2 for halves, P1… for anything else; OT, OT2… after that.
+  // Starting point for a scrimmage: keeps the period length, drops the limits.
+  function scrimmageRules(base) {
+    var r = copyRules(base);
+    r.name = 'Scrimmage';
+    r.periods = 6; r.foulOut = 0; r.techOut = 0; r.bonusAt = 0; r.doubleBonusAt = 0;
+    r.timeoutsUnlimited = true; r.scoreResets = true; r.openEnded = true; r.shotFoulAward = true;
+    return r;
+  }
+
+  // Q1–Q4… for quarters (and scrimmages that keep adding them), H1–H2 for halves;
+  // OT, OT2… after regulation.
   function periodLabel(q, rules) {
-    var n = (rules || DEFAULT_RULES).periods;
-    if (q <= n) return (n === 4 ? 'Q' : n === 2 ? 'H' : 'P') + q;
+    rules = rules || DEFAULT_RULES;
+    var n = rules.periods;
+    if (q <= n || rules.openEnded) return (n === 2 && q <= 2 ? 'H' : 'Q') + q;
     return q - n === 1 ? 'OT' : 'OT' + (q - n);
   }
 
+  // Points events: shots made and shooting-foul awards.
+  function points(e) { return e.t === 'make' || e.t === 'award' ? e.v : 0; }
+
   // Which foul "bucket" a period belongs to for bonus counting.
   function foulBucket(q, rules) {
-    if (q > rules.periods) return rules.otFoulsCarry ? foulBucket(rules.periods, rules) : 'p' + q;
+    if (q > rules.periods && !rules.openEnded) return rules.otFoulsCarry ? foulBucket(rules.periods, rules) : 'p' + q;
     if (rules.bonusReset === 'game') return 'g';
     if (rules.bonusReset === 'half') return q <= rules.periods / 2 ? 'h1' : 'h2';
     return 'p' + q;
@@ -77,6 +98,7 @@
       case 'blk': line.blk++; break;
       case 'to': line.to++; break;
       case 'chg': line.chg++; break;
+      case 'award': line.pts += e.v; break;
       case 'foul': line.pf++; if (e.v === 't') line.tf++; break;
     }
   }
@@ -129,7 +151,7 @@
       }
       applyToLine(line, e);
       applyToLine(r.team[e.tm], e);
-      if (e.t === 'make') {
+      if (points(e)) {
         r.score[e.tm] += e.v;
         r.byPeriod[e.tm][e.q - 1] += e.v;
       }
@@ -142,7 +164,7 @@
 
     // Timeouts available = regulation + per-OT allotment for OT periods reached.
     // With timeouts per half, only the current half's timeouts count, and OT adds to the second half's.
-    var ots = Math.max(0, r.periods - rules.periods, cur - rules.periods);
+    var ots = rules.openEnded ? 0 : Math.max(0, r.periods - rules.periods, cur - rules.periods);
     var byHalf = rules.timeoutsReset === 'half' && rules.periods >= 2, mid = Math.floor(rules.periods / 2);
     var from = byHalf && cur > mid ? mid + 1 : 1, to = byHalf && cur <= mid ? mid : Infinity;
     r.timeoutsAllot = {
@@ -153,7 +175,7 @@
     ['us', 'them'].forEach(function (tm) {
       var used = { full: 0, short: 0 };
       r.timeoutLog.forEach(function (t) { if (t.tm === tm && t.q >= from && t.q <= to) used[t.v === 'short' ? 'short' : 'full']++; });
-      r.timeoutsLeft[tm] = {
+      r.timeoutsLeft[tm] = rules.timeoutsUnlimited ? { full: Infinity, short: Infinity } : {
         full: Math.max(0, r.timeoutsAllot.full - used.full),
         short: Math.max(0, r.timeoutsAllot.short - used.short)
       };
@@ -163,20 +185,29 @@
     var bucket = foulBucket(cur, rules);
     r.currentFouls = { us: r.fouls.us[bucket] || 0, them: r.fouls.them[bucket] || 0 };
     // shooting.us = we shoot free throws on the next common foul by them.
+    var bon = rules.bonusAt > 0;
     r.shooting = {
-      us: r.currentFouls.them + 1 >= rules.bonusAt,
-      them: r.currentFouls.us + 1 >= rules.bonusAt
+      us: bon && r.currentFouls.them + 1 >= rules.bonusAt,
+      them: bon && r.currentFouls.us + 1 >= rules.bonusAt
     };
     // inBonus.us = the opponent has reached the bonus foul, so every further foul by them is shot.
     r.inBonus = {
-      us: r.currentFouls.them >= rules.bonusAt,
-      them: r.currentFouls.us >= rules.bonusAt
+      us: bon && r.currentFouls.them >= rules.bonusAt,
+      them: bon && r.currentFouls.us >= rules.bonusAt
     };
     var dbl = rules.doubleBonusAt;
     r.inDoubleBonus = {
       us: dbl > 0 && r.currentFouls.them >= dbl,
       them: dbl > 0 && r.currentFouls.us >= dbl
     };
+    // Periods won, for games where each period is scored on its own. A period counts once it's
+    // over: every one before the current period, and the current one too when the game is final.
+    var done = game.status === 'final' ? r.periods : cur - 1;
+    r.periodsWon = { us: 0, them: 0, tied: 0 };
+    for (i = 0; i < done; i++) {
+      var a = r.byPeriod.us[i], b2 = r.byPeriod.them[i];
+      r.periodsWon[a > b2 ? 'us' : a < b2 ? 'them' : 'tied']++;
+    }
     r.pm = plusMinus(game);
     return r;
   }
@@ -205,7 +236,7 @@
     (game.starters || []).forEach(function (id) { pm[id] = 0; });
     replayLineup(game, function (e, on) {
       if (e.t === 'sub' && e.v === 'in' && pm[e.p] === undefined) pm[e.p] = 0;
-      if (e.t === 'make') on.forEach(function (id) { pm[id] = (pm[id] || 0) + (e.tm === 'us' ? e.v : -e.v); });
+      if (points(e)) on.forEach(function (id) { pm[id] = (pm[id] || 0) + (e.tm === 'us' ? e.v : -e.v); });
     });
     return pm;
   }
@@ -217,15 +248,16 @@
     rules = rules || DEFAULT_RULES;
     var why = outReason({ pf: pf, tf: tf || 0 }, rules);
     if (why) return 'out';
-    if (pf === rules.foulOut - 1 || (rules.techOut > 1 && tf === rules.techOut - 1)) return 'warn';
-    return pf >= rules.foulOut - 2 ? 'caution' : 'ok';
+    var lim = rules.foulOut > 0;
+    if ((lim && pf === rules.foulOut - 1) || (rules.techOut > 1 && tf === rules.techOut - 1)) return 'warn';
+    return lim && pf >= rules.foulOut - 2 ? 'caution' : 'ok';
   }
 
   // Why a player can no longer play: 'ejected' (technicals), 'fouled' (foul total) or ''.
   function outReason(line, rules) {
     rules = rules || DEFAULT_RULES;
     if (rules.techOut > 0 && (line.tf || 0) >= rules.techOut) return 'ejected';
-    return line.pf >= rules.foulOut ? 'fouled' : '';
+    return rules.foulOut > 0 && line.pf >= rules.foulOut ? 'fouled' : '';
   }
 
   function pct(m, a) { return a ? Math.round((m / a) * 1000) / 10 : null; }
@@ -253,7 +285,7 @@
     var runTm = null, runPts = 0, best = { us: 0, them: 0 }, biggest = { us: 0, them: 0 };
     for (var i = 0; i < events.length; i++) {
       var e = events[i];
-      if (e.t !== 'make') continue;
+      if (!points(e)) continue;
       if (e.tm === 'us') us += e.v; else them += e.v;
       if (runTm === e.tm) runPts += e.v; else { runTm = e.tm; runPts = e.v; }
       if (runPts > best[e.tm]) best[e.tm] = runPts;
@@ -307,6 +339,8 @@
   var SB = {
     DEFAULT_RULES: DEFAULT_RULES,
     copyRules: copyRules,
+    scrimmageRules: scrimmageRules,
+    points: points,
     periodLabel: periodLabel,
     foulBucket: foulBucket,
     emptyLine: emptyLine,

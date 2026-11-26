@@ -78,6 +78,20 @@ opponent, date, place and home/away filled in, and the schedule then shows Resum
 
 On New game you can also type the opponent's jersey numbers so their column is ready at tip-off.
 
+## Scrimmages
+
+On New game, set **Type** to **Scrimmage**. The quick setup has quarters (4, 5, 6 or 8) and minutes; the
+last scrimmage's settings are remembered, and **More options** has every rule. By default a scrimmage:
+
+- doesn't count toward the season record, stats, leaders or player game logs (it shows with an **S** and a
+  Scrimmage tag in the games list);
+- restarts the score at 0–0 each quarter: the top bar shows this quarter's score with the running total
+  beside the team name, and the report shows each quarter's winner and quarters won;
+- lets you add quarters whenever you like (Period button → **End Q6 · start Q7**) and end at any time;
+- has unlimited timeouts, no foul-outs (fouls show as a count) and no bonus;
+- after any foul, asks **Shooting foul? On a 2 / On a 3 / No**. Pick the shot and tap the shooter: the shot's
+  value minus 1 is added at once (1 for a 2, 2 for a 3) and the shooter is ready for the one free throw.
+
 ## Rules
 
 Settings → **Rules for new games** sets the defaults: periods (4 quarters or 2 halves, shown as Q1–Q4 or

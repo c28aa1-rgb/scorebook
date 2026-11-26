@@ -49,6 +49,11 @@
       .sort(function (a, b) { return a.date < b.date ? 1 : a.date > b.date ? -1 : (b.created || 0) - (a.created || 0); });
   }
 
+  // Finished games that count for the season: scrimmages are left out of the record and stats.
+  function seasonFinals() {
+    return seasonGames().filter(function (g) { return g.status === 'final' && g.type !== 'scrimmage'; });
+  }
+
   function shortName(p) {
     if (!p) return '';
     return ((p.first || '') + (p.last ? ' ' + p.last.charAt(0) + '.' : '')).trim();
@@ -272,6 +277,7 @@
     else if (e.t === 'foul') d = e.v === 't' ? 'technical foul' : e.of ? 'offensive foul' : 'foul';
     else if (e.t === 'timeout') d = e.v === 'short' ? '30-second timeout' : 'full timeout';
     else if (e.t === 'sub') d = e.v === 'in' ? 'subbed in' : 'subbed out';
+    else if (e.t === 'award') d = 'fouled on a ' + (e.v + 1) + ', ' + e.v + ' pt' + (e.v > 1 ? 's' : '') + ' awarded';
     else d = { ast: 'assist', stl: 'steal', blk: 'block', to: 'turnover', chg: 'took a charge' }[e.t] || e.t;
     return who + ' — ' + d;
   }
@@ -291,7 +297,7 @@
   screens.home = function () {
     var season = find(meta.seasons, meta.currentSeasonId) || meta.seasons[0];
     var gs = seasonGames(), live = gs.filter(function (g) { return g.status !== 'final'; });
-    var finals = gs.filter(function (g) { return g.status === 'final'; });
+    var finals = seasonFinals();
     var s = C.computeSeason(finals, seasonPlayers());
     var h = [];
     h.push(pageHead(meta.team.name + ' · ' + season.name, '',
@@ -305,7 +311,7 @@
     live.forEach(function (g) {
       var c = C.computeGame(g);
       h.push('<button class="live-card" data-a="go" data-x="#game/' + g.id + '"><span class="sc">' + c.score.us + '–' +
-        c.score.them + '</span><div><b>Resume vs ' + esc(g.opponent) + '</b><small>' +
+        c.score.them + '</span><div><b>Resume ' + (g.type === 'scrimmage' ? 'scrimmage ' : '') + 'vs ' + esc(g.opponent) + '</b><small>' +
         C.periodLabel(g.quarter, c.rules) + ' · ' + esc(R.fmtDate(g.date)) + '</small></div><span class="btn sm">Resume</span></button>');
     });
     h.push('<div class="record"><div><b class="num">' + s.team.w + '–' + s.team.l + '</b><span>Record</span></div>' +
@@ -328,11 +334,13 @@
       gs.forEach(function (g) {
         var c = C.computeGame(g), wl, cls;
         if (g.status !== 'final') { wl = '●'; cls = 'live'; }
+        else if (g.type === 'scrimmage') { wl = 'S'; cls = 'scrim'; }
         else if (c.score.us > c.score.them) { wl = 'W'; cls = 'w'; }
         else if (c.score.us < c.score.them) { wl = 'L'; cls = 'l'; }
         else { wl = 'T'; cls = 'l'; }
         h.push('<li><button data-a="go" data-x="' + (g.status === 'final' ? '#report/' : '#game/') + g.id + '">' +
           '<span class="wl ' + cls + '">' + wl + '</span><span class="op">' + (g.homeAway === 'away' ? '@ ' : 'vs ') + esc(g.opponent) +
+          (g.type === 'scrimmage' ? ' <span class="tag-scrim">Scrimmage</span>' : '') +
           '<small>' + esc(R.fmtDate(g.date)) + (g.location ? ' · ' + esc(g.location) : '') + '</small></span>' +
           '<span class="sc">' + c.score.us + '–' + c.score.them + '</span></button></li>');
       });
@@ -414,7 +422,7 @@
   screens.player = function () {
     var p = player(route.id), season = find(meta.seasons, meta.currentSeasonId);
     if (!p) return pageHead('Player not found', backBtn('#home', 'Home'), '');
-    var finals = seasonGames().filter(function (g) { return g.status === 'final'; });
+    var finals = seasonFinals();
     var s = C.computeSeason(finals, seasonPlayers()), r = s.players[p.id] || { gp: 0, line: C.emptyLine(), pm: 0, pmGp: 0, games: [] };
     var on = C.pctShown(meta.settings), t = r.line, gp = r.gp;
     var h = [pageHead('#' + p.num + ' ' + ((p.first || '') + ' ' + (p.last || '')).trim() + ' · ' + season.name, backBtn('#home', 'Home'), '')];
@@ -467,7 +475,7 @@
     if (g) {
       var c = C.computeGame(g);
       right = g.status === 'final'
-        ? '<button class="btn sm ghost" data-a="go" data-x="#report/' + g.id + '">' + (c.score.us > c.score.them ? 'W ' : c.score.us < c.score.them ? 'L ' : 'T ') + c.score.us + '–' + c.score.them + '</button>'
+        ? '<button class="btn sm ghost" data-a="go" data-x="#report/' + g.id + '">' + (g.type === 'scrimmage' ? 'Scrimmage ' : c.score.us > c.score.them ? 'W ' : c.score.us < c.score.them ? 'L ' : 'T ') + c.score.us + '–' + c.score.them + '</button>'
         : '<button class="btn sm pri" data-a="go" data-x="#game/' + g.id + '">Resume ' + c.score.us + '–' + c.score.them + '</button>';
     } else {
       right = '<button class="btn sm pri" data-a="startScheduled" data-x="' + x.id + '">Start game</button>';
@@ -578,13 +586,16 @@
     var ps = seasonPlayers();
     if (!draft) draft = { opponent: '', date: today(), location: '', homeAway: 'home', starters: [] };
     var h = [pageHead('New game', backBtn('#home', 'Home'),
-      '<button class="btn pri" data-a="startGame"' + (ps.length ? '' : ' disabled') + '>Start game</button>')];
+      '<button class="btn pri" data-a="startGame"' + (ps.length ? '' : ' disabled') + '>' + (draft.type === 'scrimmage' ? 'Start scrimmage' : 'Start game') + '</button>')];
     h.push('<div class="pg-bd">');
     if (!ps.length) {
       h.push('<div class="empty-state">Your roster is empty.<br><button class="btn pri" data-a="go" data-x="#roster">Add players</button></div></div>');
       return h.join('');
     }
     h.push('<h2>Game</h2><div class="form">');
+    h.push('<div class="fld xs" style="flex-basis:16rem"><span class="lab">Type</span><div class="seg">' +
+      '<button data-a="draftType" data-x="game" class="' + (draft.type !== 'scrimmage' ? 'on' : '') + '">Game</button>' +
+      '<button data-a="draftType" data-x="scrimmage" class="' + (draft.type === 'scrimmage' ? 'on' : '') + '">Scrimmage</button></div></div>');
     h.push('<div class="fld"><label for="ng-opp">Opponent</label><input id="ng-opp" list="opps" data-draft="opponent" value="' + esc(draft.opponent) + '" autocomplete="off" placeholder="e.g. Riverdale">' +
       '<datalist id="opps">' + meta.opponents.map(function (o) { return '<option value="' + esc(o.name) + '">'; }).join('') + '</datalist></div>');
     h.push('<div class="fld xs" style="flex-basis:11rem"><label for="ng-date">Date</label><input id="ng-date" type="date" data-draft="date" value="' + esc(draft.date) + '"></div>');
@@ -602,6 +613,18 @@
         '</span><span>' + esc(shortName(p)) + '</span></button>');
     });
     h.push('</div>');
+    if (draft.type === 'scrimmage') {
+      // Quick setup: the usual choices up front, everything else under More options.
+      var sr = draft.rules;
+      h.push('<h2>Scrimmage setup</h2><div class="form rules"><div class="fld xs" style="flex-basis:20rem"><span class="lab">Quarters</span><div class="seg">' +
+        [4, 5, 6, 8].map(function (n) { return '<button data-a="draftPeriods" data-x="' + n + '" class="' + (sr.periods === n ? 'on' : '') + '">' + n + '</button>'; }).join('') +
+        '</div></div><div class="fld xs" style="flex-basis:9.5rem"><label for="sq-min">Minutes each</label><input id="sq-min" type="number" min="0" inputmode="numeric" data-drule="periodMinutes" value="' +
+        sr.periodMinutes + '"></div></div>');
+      h.push('<p class="note">' + rulesSummary(sr) + '. Doesn’t count toward the season record or stats. You can add quarters during the scrimmage.</p>');
+      h.push(ui.moreRules ? rulesForm(sr, 'data-drule') : '<button class="btn sm ghost" data-a="moreRules">More options</button>');
+      h.push('</div>');
+      return h.join('');
+    }
     h.push('<h2>Rules</h2>');
     if (draft.rules) {
       h.push(rulesForm(draft.rules, 'data-drule') + '<p class="note">These apply to this game only. ' +
@@ -657,27 +680,40 @@
   };
 
   function teamBlock(tm, name, c) {
-    var fouls = c.currentFouls[tm], r = c.rules, left = c.timeoutsLeft[tm], h = [];
-    var boxes = '<span class="boxes">';
-    for (var i = 0; i < r.bonusAt; i++) boxes += '<span class="box' + (i < fouls ? ' on' : '') + '"></span>';
-    boxes += '</span>' + (fouls > r.bonusAt ? '<span>+' + (fouls - r.bonusAt) + '</span>' : '');
-    var pips = '<span class="pips">';
-    for (i = 0; i < c.timeoutsAllot.full; i++) pips += '<span class="pip' + (i < left.full ? ' on' : '') + '"></span>';
-    for (i = 0; i < c.timeoutsAllot.short; i++) pips += '<span class="pip s' + (i < left.short ? ' on' : '') + '"></span>';
-    pips += '</span>';
-    h.push('<div class="tm ' + tm + '"><span class="tm-score">' + c.score[tm] + '</span><div class="tm-info">');
-    h.push('<span class="tm-name">' + esc(name) + '</span>');
+    var fouls = c.currentFouls[tm], r = c.rules, left = c.timeoutsLeft[tm], h = [], i;
+    var boxes = '';
+    if (r.bonusAt > 0) {
+      boxes = '<span class="boxes">';
+      for (i = 0; i < r.bonusAt; i++) boxes += '<span class="box' + (i < fouls ? ' on' : '') + '"></span>';
+      boxes += '</span>' + (fouls > r.bonusAt ? '<span>+' + (fouls - r.bonusAt) + '</span>' : '');
+    }
+    var to;
+    if (r.timeoutsUnlimited) {
+      to = c.timeoutsUsed[tm].full + c.timeoutsUsed[tm].short;
+      to = 'TO <span>' + (to ? to + ' used' : 'unlimited') + '</span>';
+    } else {
+      var pips = '<span class="pips">';
+      for (i = 0; i < c.timeoutsAllot.full; i++) pips += '<span class="pip' + (i < left.full ? ' on' : '') + '"></span>';
+      for (i = 0; i < c.timeoutsAllot.short; i++) pips += '<span class="pip s' + (i < left.short ? ' on' : '') + '"></span>';
+      to = 'TO ' + pips + '</span><span>' + left.full + '+' + left.short + '</span>';
+    }
+    // When each period is scored on its own, the big number is this period's score.
+    var big = r.scoreResets ? c.byPeriod[tm][c.quarter - 1] || 0 : c.score[tm];
+    h.push('<div class="tm ' + tm + '"><span class="tm-score">' + big + '</span><div class="tm-info">');
+    h.push('<span class="tm-name">' + esc(name) + (r.scoreResets ? ' <small>· total ' + c.score[tm] + '</small>' : '') + '</span>');
     // Shown on the team that shoots: BONUS once the other side reaches the bonus foul,
     // "1 TO BONUS" when their next foul gets there.
     var bonus = c.inDoubleBonus[tm] ? '<span class="bonus">DOUBLE BONUS</span>' : c.inBonus[tm] ? '<span class="bonus">BONUS</span>' :
       c.shooting[tm] ? '<span class="bonus next">1 TO BONUS</span>' : '';
     h.push('<span class="tm-row"><span>FOULS ' + fouls + '</span>' + boxes + bonus + '</span>');
-    h.push('<button class="tm-to" data-a="drawer" data-x="to-' + tm + '">TO ' + pips + '<span>' + left.full + '+' + left.short + '</span></button>');
+    h.push('<button class="tm-to" data-a="drawer" data-x="to-' + tm + '">' + to + '</button>');
     h.push('</div></div>');
     return h.join('');
   }
 
   function foulBoxes(pf, rules, tf) {
+    // No foul-out limit: just the count.
+    if (!(rules.foulOut > 0)) return '<span class="pf-n num">' + pf + ' PF</span>' + (tf ? '<span class="tag-t">' + tf + 'T</span>' : '');
     var s = '<span class="boxes">';
     for (var i = 0; i < rules.foulOut; i++) s += '<span class="box' + (i < pf ? ' on' : '') + '"></span>';
     return s + '</span>' + (tf ? '<span class="tag-t">' + tf + 'T</span>' : '');
@@ -758,6 +794,19 @@
   }
 
   function padHead(g, c) {
+    // Scrimmage shooting fouls: first "was it a shooting foul?", then "who was fouled?".
+    if (ui.award) {
+      var aw = ui.award;
+      return '<div class="pad-head ask"><span class="lbl">Fouled on a ' + aw.shot + ' · tap the shooter</span>' +
+        (aw.tm === 'them' ? '<button class="qk" data-a="awardTeam" style="font-family:var(--f-body);font-size:.8rem">No #</button>' : '') +
+        '<button class="qk no" data-a="awardCancel">Cancel</button></div>';
+    }
+    if (ui.prompt && ui.prompt.k === 'shot') {
+      var fd = ui.prompt.fouled;
+      return '<div class="pad-head ask"><span class="lbl">Shooting foul?</span>' +
+        '<button class="qk" data-a="shotFoul" data-x="' + fd + ':2">On a 2</button><button class="qk" data-a="shotFoul" data-x="' + fd + ':3">On a 3</button>' +
+        '<button class="qk no" data-a="promptSkip">No</button></div>';
+    }
     if (ui.prompt) {
       var pr = ui.prompt, others = g.onCourt.filter(function (id) { return id && id !== pr.p; });
       var label = pr.k === 'ast' ? 'Assist?' : 'Rebound?';
@@ -817,16 +866,24 @@
   function drawer(g, c) {
     var d = ui.drawer, r = c.rules, h;
     if (d === 'to-us' || d === 'to-them') {
-      var tm = d.slice(3), left = c.timeoutsLeft[tm], name = tm === 'us' ? meta.team.name : g.opponent;
+      var tm = d.slice(3), left = c.timeoutsLeft[tm], name = tm === 'us' ? meta.team.name : g.opponent, unl = r.timeoutsUnlimited;
       h = '<div class="stack">' +
-        '<button class="btn pri" data-a="timeout" data-x="' + tm + ':full"' + (left.full ? '' : ' disabled') + '>Full timeout <small>' + left.full + ' left</small></button>' +
-        '<button class="btn" data-a="timeout" data-x="' + tm + ':short"' + (left.short ? '' : ' disabled') + '>30-second timeout <small>' + left.short + ' left</small></button></div>';
+        '<button class="btn pri" data-a="timeout" data-x="' + tm + ':full"' + (left.full ? '' : ' disabled') + '>Full timeout' + (unl ? '' : ' <small>' + left.full + ' left</small>') + '</button>' +
+        '<button class="btn" data-a="timeout" data-x="' + tm + ':short"' + (left.short ? '' : ' disabled') + '>30-second timeout' + (unl ? '' : ' <small>' + left.short + ' left</small>') + '</button></div>';
       return sheet(name + ' timeout · ' + C.periodLabel(g.quarter, r), h, '', true);
     }
     if (d === 'quarter') {
       var q = g.quarter, inReg = q < r.periods;
       h = '<div class="stack">';
-      if (inReg) h += '<button class="btn pri" data-a="setQ" data-x="' + (q + 1) + '">End ' + C.periodLabel(q, r) + ' · start ' + C.periodLabel(q + 1, r) + '</button>';
+      if (r.openEnded) {
+        // Scrimmage-style: keep adding periods, end whenever the coach is done.
+        var w = c.periodsWon, wn = (r.periods === 2 ? 'halves' : 'quarters') + ' won ' + w.us + '–' + w.them + (w.tied ? ' (' + w.tied + ' tied)' : '');
+        h += '<button class="btn' + (inReg ? ' pri' : '') + '" data-a="setQ" data-x="' + (q + 1) + '">End ' + C.periodLabel(q, r) + ' · start ' + C.periodLabel(q + 1, r) +
+          (inReg ? '' : '<small>add another</small>') + '</button>';
+        h += '<button class="btn' + (inReg ? ' ghost' : ' pri') + '" data-a="endGame">End ' + (g.type === 'scrimmage' ? 'scrimmage' : 'game') + ' — final<small>' +
+          (r.scoreResets ? wn + ' · total ' : '') + c.score.us + '–' + c.score.them + '</small></button>';
+        inReg = false;
+      } else if (inReg) h += '<button class="btn pri" data-a="setQ" data-x="' + (q + 1) + '">End ' + C.periodLabel(q, r) + ' · start ' + C.periodLabel(q + 1, r) + '</button>';
       else {
         var tied = c.score.us === c.score.them;
         h += '<button class="btn' + (tied ? '' : ' pri') + '" data-a="endGame">End game — final<small>' + c.score.us + '–' + c.score.them + '</small></button>';
@@ -933,13 +990,16 @@
   // ----- Settings -----
   // One-line description of a rule set, e.g. for the New game screen.
   function rulesSummary(r) {
-    var per = r.periods === 4 ? 'quarters' : r.periods === 2 ? 'halves' : 'periods';
+    var per = r.periods === 2 ? 'halves' : 'quarters';
     var reset = { quarter: r.periods === 2 ? 'each half' : 'each quarter', half: 'each half', game: 'never' }[r.bonusReset];
-    return esc(r.name) + ': ' + r.periods + ' ' + per + ' × ' + r.periodMinutes + ' min · foul out at ' + r.foulOut +
-      (r.techOut ? ', ejected at ' + r.techOut + ' techs' : '') + ' · bonus on team foul ' + r.bonusAt +
-      (r.doubleBonusAt ? ' (double on ' + r.doubleBonusAt + ')' : '') + ', fouls reset ' + reset +
-      ' · ' + r.timeoutsFull + ' full + ' + r.timeoutsShort + ' 30-sec timeouts per ' + (r.timeoutsReset === 'half' ? 'half' : 'game') +
-      ' · OT ' + r.otMinutes + ' min, +' + r.otTimeoutsFull + (r.otTimeoutsShort ? ' full +' + r.otTimeoutsShort + ' 30-sec' : '') + ' timeout';
+    return esc(r.name) + ': ' + r.periods + ' ' + per + ' × ' + r.periodMinutes + ' min' +
+      (r.openEnded ? ' (more can be added)' : '') + (r.scoreResets ? ' · score restarts each ' + (r.periods === 2 ? 'half' : 'quarter') : '') +
+      ' · ' + (r.foulOut ? 'foul out at ' + r.foulOut : 'no foul-outs') + (r.techOut ? ', ejected at ' + r.techOut + ' techs' : '') +
+      (r.bonusAt ? ' · bonus on team foul ' + r.bonusAt + (r.doubleBonusAt ? ' (double on ' + r.doubleBonusAt + ')' : '') + ', fouls reset ' + reset : ' · no bonus') +
+      (r.shotFoulAward ? ' · shooting fouls: shot − 1 + 1 free throw' : '') +
+      (r.timeoutsUnlimited ? ' · unlimited timeouts'
+        : ' · ' + r.timeoutsFull + ' full + ' + r.timeoutsShort + ' 30-sec timeouts per ' + (r.timeoutsReset === 'half' ? 'half' : 'game')) +
+      (r.openEnded ? '' : ' · OT ' + r.otMinutes + ' min, +' + r.otTimeoutsFull + (r.otTimeoutsShort ? ' full +' + r.otTimeoutsShort + ' 30-sec' : '') + ' timeout');
   }
 
   // Rule fields. attr says where edits go: data-rule (Settings: defaults for new games),
@@ -957,18 +1017,23 @@
     }
     return '<div class="form"><div class="fld"><label for="' + id('name') + '">Rules name (shown on reports)</label><input id="' + id('name') + '" ' + attr +
       '="name" value="' + esc(r.name) + '"></div></div>' +
-      '<h3 class="rules-hd">Game</h3><div class="form rules">' + num('periods', 'Periods (4 = quarters)') + num('periodMinutes', 'Minutes each') + num('otMinutes', 'OT minutes') + '</div>' +
-      '<h3 class="rules-hd">Fouls</h3><div class="form rules">' + num('foulOut', 'Foul out at') + num('techOut', 'Ejected at techs') +
-      num('bonusAt', 'Bonus on team foul') + num('doubleBonusAt', 'Double bonus on (0 = none)') +
+      '<h3 class="rules-hd">Game</h3><div class="form rules">' + num('periods', 'Periods (4 = quarters)') + num('periodMinutes', 'Minutes each') +
+      sel('scoreResets', 'Score', [['0', 'Running total'], ['1', 'Restarts 0–0 each period']]) +
+      sel('openEnded', 'After the last period', [['0', 'Overtime if tied'], ['1', 'Add periods any time']]) + num('otMinutes', 'OT minutes') + '</div>' +
+      '<h3 class="rules-hd">Fouls</h3><div class="form rules">' + num('foulOut', 'Foul out at (0 = never)') + num('techOut', 'Ejected at techs (0 = never)') +
+      num('bonusAt', 'Bonus on team foul (0 = none)') + num('doubleBonusAt', 'Double bonus on (0 = none)') +
       sel('bonusReset', 'Team fouls reset', [['quarter', 'Each period'], ['half', 'Each half'], ['game', 'Never']]) +
-      sel('otFoulsCarry', 'Team fouls in OT', [['1', 'Carry over'], ['0', 'Start at 0']]) + '</div>' +
-      '<h3 class="rules-hd">Timeouts</h3><div class="form rules">' + num('timeoutsFull', 'Full') + num('timeoutsShort', '30-second') +
+      sel('otFoulsCarry', 'Team fouls in OT', [['1', 'Carry over'], ['0', 'Start at 0']]) +
+      sel('shotFoulAward', 'Shooting fouls', [['0', 'Free throws'], ['1', 'Award shot − 1, then 1 FT']]) + '</div>' +
+      '<h3 class="rules-hd">Timeouts</h3><div class="form rules">' + sel('timeoutsUnlimited', 'Timeouts', [['0', 'Limited'], ['1', 'Unlimited']]) +
+      num('timeoutsFull', 'Full') + num('timeoutsShort', '30-second') +
       sel('timeoutsReset', 'Allotment is per', [['game', 'Game'], ['half', 'Half (fresh each half)']]) +
       num('otTimeoutsFull', 'Full added per OT') + num('otTimeoutsShort', '30-sec added per OT') + '</div>';
   }
 
+  var BOOL_RULES = { otFoulsCarry: 1, scoreResets: 1, openEnded: 1, shotFoulAward: 1, timeoutsUnlimited: 1 };
   function ruleValue(k, v) {
-    if (k === 'otFoulsCarry') return v === '1';
+    if (BOOL_RULES[k]) return v === '1';
     if (k === 'bonusReset' || k === 'timeoutsReset') return v;
     if (k === 'name') return String(v).trim() || 'Custom';
     var n = Math.max(0, parseInt(v, 10) || 0);
@@ -1058,8 +1123,33 @@
   // Tapping a player always selects (never toggles off): after a free throw the shooter
   // stays selected, and a reflexive second tap must not clear it.
   // Picking a player also points the pad at their team (both teams show at once on wide screens).
-  actions.pick = function (x) { ui.sel = x; ui.msg = null; ui.side = 'us'; render(); };
-  actions.oppPick = function (x) { ui.oppSel = x === '' ? null : x; ui.side = 'them'; render(); };
+  // While a shooting-foul award is waiting, the pick says who gets it.
+  actions.pick = function (x) {
+    if (ui.award && ui.award.tm === 'us') giveAward(gameById(route.id), 'us', x);
+    ui.sel = x; ui.msg = null; ui.side = 'us'; render();
+  };
+  actions.oppPick = function (x) {
+    if (ui.award && ui.award.tm === 'them') giveAward(gameById(route.id), 'them', x);
+    ui.oppSel = x === '' ? null : x; ui.side = 'them'; render();
+  };
+
+  // Scrimmage rule: a shooting foul gives the shot's value minus 1 right away, then one free throw.
+  actions.shotFoul = function (x) {
+    var p = x.split(':'), v = parseInt(p[1], 10);
+    ui.award = { tm: p[0], shot: v, v: v - 1 };
+    ui.side = p[0]; ui.sel = null; ui.oppSel = null;
+    render();
+  };
+  function giveAward(g, tm, p) {
+    var aw = ui.award;
+    ui.award = null;
+    addEvent(g, tm, p, 'award', aw.v);
+    if (tm === 'us') ui.flash = p;
+    var who = tm === 'us' ? subName(p) : g.opponent + (p ? ' #' + p : '');
+    toast(who + ': ' + aw.v + ' point' + (aw.v > 1 ? 's' : '') + ' for the shot. Now the free throw.');
+  }
+  actions.awardTeam = function () { giveAward(gameById(route.id), 'them', ''); ui.oppSel = null; ui.side = 'them'; render(); };
+  actions.awardCancel = function () { ui.award = null; render(); };
 
   // Live: our team stat
   actions.act = function (x) {
@@ -1076,6 +1166,7 @@
     if (t === 'make' && v > 1) ui.prompt = { k: 'ast', p: ui.sel };
     else if (t === 'miss') ui.prompt = { k: 'reb', p: ui.sel };
     else if (t === 'chg') { ui.drawer = 'chgFoul'; ui.chgSeq = e.s; }
+    else if (t === 'foul' && v === 'p' && c.rules.shotFoulAward) ui.prompt = { k: 'shot', fouled: 'them' };
     if (t === 'foul') {
       var after = C.computeGame(g), p = player(ui.sel);
       var notes = [foulNotice('#' + p.num + ' ' + shortName(p), after.players[ui.sel], after.rules, v === 't', true)];
@@ -1118,8 +1209,10 @@
   actions.oppAct = function (x) {
     var g = gameById(route.id), parts = x.split(':'), t = parts[0], v = parts[1];
     if (t === 'make') v = parseInt(v, 10);
-    if (t === 'foul') oppFoul(g, ui.oppSel || '', v);
-    else addEvent(g, 'them', ui.oppSel || '', t, v);
+    if (t === 'foul') {
+      oppFoul(g, ui.oppSel || '', v);
+      if (v === 'p' && C.copyRules(g.rules).shotFoulAward) ui.prompt = { k: 'shot', fouled: 'us' };
+    } else addEvent(g, 'them', ui.oppSel || '', t, v);
     if (!(t === 'make' && v === 1)) ui.oppSel = null;
     render();
   };
@@ -1228,12 +1321,20 @@
   };
 
   actions.setQ = function (x) {
-    var g = gameById(route.id);
+    var g = gameById(route.id), prev = g.quarter;
     g.quarter = parseInt(x, 10);
-    ui.drawer = null; ui.prompt = null;
+    ui.drawer = null; ui.prompt = null; ui.award = null;
     saveGame(g);
-    var c = C.computeGame(g);
-    toast(C.periodLabel(g.quarter, c.rules) + ' started · team fouls ' + c.currentFouls.us + '–' + c.currentFouls.them);
+    var c = C.computeGame(g), r = c.rules, msg;
+    if (r.scoreResets && g.quarter > prev) {
+      // Say how the period that just ended went, since the scoreboard goes back to 0–0.
+      var a = c.byPeriod.us[prev - 1], b = c.byPeriod.them[prev - 1];
+      msg = C.periodLabel(prev, r) + ' ' + (a > b ? 'to ' + meta.team.name : a < b ? 'to ' + g.opponent : 'tied') + ' ' + a + '–' + b + '. ' +
+        C.periodLabel(g.quarter, r) + ' starts at 0–0.';
+    } else {
+      msg = C.periodLabel(g.quarter, r) + ' started' + (r.bonusAt ? ' · team fouls ' + c.currentFouls.us + '–' + c.currentFouls.them : '');
+    }
+    toast(msg, r.scoreResets ? 4500 : 0);
     render();
   };
 
@@ -1392,6 +1493,16 @@
     go('#new');
   };
 
+  // Scrimmage: starts from the last scrimmage's rules (or the defaults) so the setup is usually one tap.
+  actions.draftType = function (x) {
+    draft.type = x;
+    draft.rules = x === 'scrimmage' ? C.copyRules(meta.settings.scrimRules || C.scrimmageRules(meta.settings.rules)) : null;
+    ui.moreRules = false;
+    render();
+  };
+  actions.draftPeriods = function (x) { draft.rules.periods = parseInt(x, 10); render(); };
+  actions.moreRules = function () { ui.moreRules = true; render(); };
+
   actions.draftRules = function (x) { draft.rules = x === 'on' ? C.copyRules(meta.settings.rules) : null; render(); };
 
   // "1, 3 7/13" → ['1', '3', '7', '13']: jersey numbers, no repeats.
@@ -1413,10 +1524,12 @@
       id: uid(), seasonId: meta.currentSeasonId, opponent: name, date: draft.date || today(), location: (draft.location || '').trim(),
       homeAway: draft.homeAway, rules: C.copyRules(draft.rules || meta.settings.rules), quarter: 1, status: 'live', events: [], seq: 0,
       onCourt: draft.starters.slice(), appeared: draft.starters.slice(), starters: draft.starters.slice(), roster: roster,
-      oppNums: parseNums(draft.oppNumsText), created: Date.now(), publishedUrl: '', publishId: '', subLog: true
+      oppNums: parseNums(draft.oppNumsText), created: Date.now(), publishedUrl: '', publishId: '', subLog: true,
+      type: draft.type === 'scrimmage' ? 'scrimmage' : 'game'
     };
     games.push(g);
     saveGame(g);
+    if (g.type === 'scrimmage') { meta.settings.scrimRules = C.copyRules(g.rules); saveMeta(); }
     // Started from the schedule: mark that entry as played.
     var sch = draft.schedId && find(meta.schedule, draft.schedId);
     if (sch) { sch.gameId = g.id; saveMeta(); }
@@ -1555,6 +1668,7 @@
 
   // ---------- event wiring ----------
   var TWO_TAP = { rmEvent: 1, rmPlayer: 1, removeSample: 1, deleteGame: 1, rmSched: 1 };
+  var AWARD_KEEP = { pick: 1, oppPick: 1, awardTeam: 1, awardCancel: 1, side: 1 };
   function closest(el, attr) {
     while (el && el !== document) { if (el.getAttribute && el.getAttribute(attr) !== null) return el; el = el.parentNode; }
     return null;
@@ -1573,6 +1687,8 @@
     if (a !== 'promptPick' && a !== 'promptSkip') ui.prompt = null;
     // Two-tap confirm buttons keep their armed state; any other tap disarms them.
     if (!TWO_TAP[a]) ui.armed = null;
+    // A waiting shooting-foul award lasts only until something other than picking the shooter.
+    if (ui.award && !AWARD_KEEP[a]) ui.award = null;
     actions[a](el.getAttribute('data-x'));
   });
 
