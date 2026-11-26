@@ -277,7 +277,7 @@
     else if (e.t === 'foul') d = e.v === 't' ? 'technical foul' : e.of ? 'offensive foul' : 'foul';
     else if (e.t === 'timeout') d = e.v === 'short' ? '30-second timeout' : 'full timeout';
     else if (e.t === 'sub') d = e.v === 'in' ? 'subbed in' : 'subbed out';
-    else if (e.t === 'award') d = 'fouled on a ' + (e.v + 1) + ', ' + e.v + ' pt' + (e.v > 1 ? 's' : '') + ' awarded';
+    else if (e.t === 'award') d = (e.v === 1 ? 'point' : e.v + ' points') + ' for shooting foul';
     else d = { ast: 'assist', stl: 'steal', blk: 'block', to: 'turnover', chg: 'took a charge' }[e.t] || e.t;
     return who + ' — ' + d;
   }
@@ -792,18 +792,13 @@
   }
 
   function padHead(g, c) {
-    // Scrimmage shooting fouls: first "was it a shooting foul?", then "who was fouled?".
-    if (ui.award) {
-      var aw = ui.award;
-      return '<div class="pad-head ask"><span class="lbl">Fouled on a ' + aw.shot + ' · tap the shooter</span>' +
-        (aw.tm === 'them' ? '<button class="qk" data-a="awardTeam" style="font-family:var(--f-body);font-size:.8rem">No #</button>' : '') +
-        '<button class="qk no" data-a="awardCancel">Cancel</button></div>';
-    }
-    if (ui.prompt && ui.prompt.k === 'shot') {
-      var fd = ui.prompt.fouled;
-      return '<div class="pad-head ask"><span class="lbl">Shooting foul?</span>' +
-        '<button class="qk" data-a="shotFoul" data-x="' + fd + ':2">On a 2</button><button class="qk" data-a="shotFoul" data-x="' + fd + ':3">On a 3</button>' +
-        '<button class="qk no" data-a="promptSkip">No</button></div>';
+    // Scrimmage: was that +1 a real free throw, or the point(s) for being fouled on a shot?
+    if (ui.prompt && ui.prompt.k === 'ft') {
+      var s = ui.prompt.s, txt = 'style="font-family:var(--f-body);font-size:.85rem"';
+      return '<div class="pad-head ask"><span class="lbl">Free throw?</span>' +
+        '<button class="qk" data-a="promptSkip" ' + txt + '>Free throw</button>' +
+        '<button class="qk" data-a="ftConvert" data-x="' + s + ':1" ' + txt + '>Point only</button>' +
+        '<button class="qk" data-a="ftConvert" data-x="' + s + ':2" ' + txt + '>2 points</button></div>';
     }
     if (ui.prompt) {
       var pr = ui.prompt, others = g.onCourt.filter(function (id) { return id && id !== pr.p; });
@@ -994,7 +989,7 @@
       (r.openEnded ? ' (more can be added)' : '') + (r.scoreResets ? ' · score restarts each ' + (r.periods === 2 ? 'half' : 'quarter') : '') +
       ' · ' + (r.foulOut ? 'foul out at ' + r.foulOut : 'no foul-outs') + (r.techOut ? ', ejected at ' + r.techOut + ' techs' : '') +
       (r.bonusAt ? ' · bonus on team foul ' + r.bonusAt + (r.doubleBonusAt ? ' (double on ' + r.doubleBonusAt + ')' : '') + ', fouls reset ' + reset : ' · no bonus') +
-      (r.shotFoulAward ? ' · shooting fouls: shot − 1 + 1 free throw' : '') +
+      (r.shotFoulAward ? ' · shooting fouls: points + 1 free throw (after +1 it asks which)' : '') +
       (r.timeoutsUnlimited ? ' · unlimited timeouts'
         : ' · ' + r.timeoutsFull + ' full + ' + r.timeoutsShort + ' 30-sec timeouts per ' + (r.timeoutsReset === 'half' ? 'half' : 'game')) +
       (r.openEnded ? '' : ' · OT ' + r.otMinutes + ' min, +' + r.otTimeoutsFull + (r.otTimeoutsShort ? ' full +' + r.otTimeoutsShort + ' 30-sec' : '') + ' timeout');
@@ -1022,7 +1017,7 @@
       num('bonusAt', 'Bonus on team foul (0 = none)') + num('doubleBonusAt', 'Double bonus on (0 = none)') +
       sel('bonusReset', 'Team fouls reset', [['quarter', 'Each period'], ['half', 'Each half'], ['game', 'Never']]) +
       sel('otFoulsCarry', 'Team fouls in OT', [['1', 'Carry over'], ['0', 'Start at 0']]) +
-      sel('shotFoulAward', 'Shooting fouls', [['0', 'Free throws'], ['1', 'Award shot − 1, then 1 FT']]) + '</div>' +
+      sel('shotFoulAward', 'After +1, ask "free throw?"', [['0', 'No (always a free throw)'], ['1', 'Yes (point or free throw)']]) + '</div>' +
       '<h3 class="rules-hd">Timeouts</h3><div class="form rules">' + sel('timeoutsUnlimited', 'Timeouts', [['0', 'Limited'], ['1', 'Unlimited']]) +
       num('timeoutsFull', 'Full') + num('timeoutsShort', '30-second') +
       sel('timeoutsReset', 'Allotment is per', [['game', 'Game'], ['half', 'Half (fresh each half)']]) +
@@ -1121,33 +1116,22 @@
   // Tapping a player always selects (never toggles off): after a free throw the shooter
   // stays selected, and a reflexive second tap must not clear it.
   // Picking a player also points the pad at their team (both teams show at once on wide screens).
-  // While a shooting-foul award is waiting, the pick says who gets it.
-  actions.pick = function (x) {
-    if (ui.award && ui.award.tm === 'us') giveAward(gameById(route.id), 'us', x);
-    ui.sel = x; ui.msg = null; ui.side = 'us'; render();
-  };
-  actions.oppPick = function (x) {
-    if (ui.award && ui.award.tm === 'them') giveAward(gameById(route.id), 'them', x);
-    ui.oppSel = x === '' ? null : x; ui.side = 'them'; render();
-  };
+  actions.pick = function (x) { ui.sel = x; ui.msg = null; ui.side = 'us'; render(); };
+  actions.oppPick = function (x) { ui.oppSel = x === '' ? null : x; ui.side = 'them'; render(); };
 
-  // Scrimmage rule: a shooting foul gives the shot's value minus 1 right away, then one free throw.
-  actions.shotFoul = function (x) {
-    var p = x.split(':'), v = parseInt(p[1], 10);
-    ui.award = { tm: p[0], shot: v, v: v - 1 };
-    ui.side = p[0]; ui.sel = null; ui.oppSel = null;
+  // Scrimmage shooting-foul rule: a +1 is recorded as a made free throw, then the pad asks whether
+  // it was one. "Point only" / "2 points" turn it into points that aren't a shot ('award'), so
+  // free-throw percentage isn't affected.
+  function askFreeThrow(g, e) { if (C.copyRules(g.rules).shotFoulAward) ui.prompt = { k: 'ft', s: e.s }; }
+  actions.ftConvert = function (x) {
+    var g = gameById(route.id), p = x.split(':'), s = parseInt(p[0], 10), v = parseInt(p[1], 10), e = null;
+    for (var i = 0; i < g.events.length; i++) if (g.events[i].s === s) e = g.events[i];
+    if (!e) return render();
+    e.t = 'award'; e.v = v;
+    saveGame(g);
+    toast(v === 1 ? 'Counted as a point, not a free throw.' : 'Counted as 2 points, not a free throw.');
     render();
   };
-  function giveAward(g, tm, p) {
-    var aw = ui.award;
-    ui.award = null;
-    addEvent(g, tm, p, 'award', aw.v);
-    if (tm === 'us') ui.flash = p;
-    var who = tm === 'us' ? subName(p) : g.opponent + (p ? ' #' + p : '');
-    toast(who + ': ' + aw.v + ' point' + (aw.v > 1 ? 's' : '') + ' for the shot. Now the free throw.');
-  }
-  actions.awardTeam = function () { giveAward(gameById(route.id), 'them', ''); ui.oppSel = null; ui.side = 'them'; render(); };
-  actions.awardCancel = function () { ui.award = null; render(); };
 
   // Live: our team stat
   actions.act = function (x) {
@@ -1164,7 +1148,7 @@
     if (t === 'make' && v > 1) ui.prompt = { k: 'ast', p: ui.sel };
     else if (t === 'miss') ui.prompt = { k: 'reb', p: ui.sel };
     else if (t === 'chg') { ui.drawer = 'chgFoul'; ui.chgSeq = e.s; }
-    else if (t === 'foul' && v === 'p' && c.rules.shotFoulAward) ui.prompt = { k: 'shot', fouled: 'them' };
+    else if (t === 'make' && v === 1) askFreeThrow(g, e);
     if (t === 'foul') {
       var after = C.computeGame(g), p = player(ui.sel);
       var notes = [foulNotice('#' + p.num + ' ' + shortName(p), after.players[ui.sel], after.rules, v === 't', true)];
@@ -1207,10 +1191,11 @@
   actions.oppAct = function (x) {
     var g = gameById(route.id), parts = x.split(':'), t = parts[0], v = parts[1];
     if (t === 'make') v = parseInt(v, 10);
-    if (t === 'foul') {
-      oppFoul(g, ui.oppSel || '', v);
-      if (v === 'p' && C.copyRules(g.rules).shotFoulAward) ui.prompt = { k: 'shot', fouled: 'us' };
-    } else addEvent(g, 'them', ui.oppSel || '', t, v);
+    if (t === 'foul') oppFoul(g, ui.oppSel || '', v);
+    else {
+      var e = addEvent(g, 'them', ui.oppSel || '', t, v);
+      if (t === 'make' && v === 1) askFreeThrow(g, e);
+    }
     if (!(t === 'make' && v === 1)) ui.oppSel = null;
     render();
   };
@@ -1321,7 +1306,7 @@
   actions.setQ = function (x) {
     var g = gameById(route.id), prev = g.quarter;
     g.quarter = parseInt(x, 10);
-    ui.drawer = null; ui.prompt = null; ui.award = null;
+    ui.drawer = null; ui.prompt = null;
     saveGame(g);
     var c = C.computeGame(g), r = c.rules, msg;
     if (r.scoreResets && g.quarter > prev) {
@@ -1666,7 +1651,6 @@
 
   // ---------- event wiring ----------
   var TWO_TAP = { rmEvent: 1, rmPlayer: 1, removeSample: 1, deleteGame: 1, rmSched: 1 };
-  var AWARD_KEEP = { pick: 1, oppPick: 1, awardTeam: 1, awardCancel: 1, side: 1 };
   function closest(el, attr) {
     while (el && el !== document) { if (el.getAttribute && el.getAttribute(attr) !== null) return el; el = el.parentNode; }
     return null;
@@ -1684,10 +1668,7 @@
     // Any action other than answering the prompt dismisses it.
     if (a !== 'promptPick' && a !== 'promptSkip') ui.prompt = null;
     // Two-tap confirm buttons keep their armed state; any other tap disarms them.
-    if (!TWO_TAP[a]) ui.armed = null;
-    // A waiting shooting-foul award lasts only until something other than picking the shooter.
-    if (ui.award && !AWARD_KEEP[a]) ui.award = null;
-    actions[a](el.getAttribute('data-x'));
+    if (!TWO_TAP[a]) ui.armed = null;    actions[a](el.getAttribute('data-x'));
   });
 
   // Form inputs: edits save immediately; no submit buttons for settings.

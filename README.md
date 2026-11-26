@@ -89,8 +89,10 @@ last scrimmage's settings are remembered, and **More options** has every rule. B
   ending a quarter says who won it, and the report shows each quarter's winner and quarters won;
 - lets you add quarters whenever you like (Period button → **End Q6 · start Q7**) and end at any time;
 - has unlimited timeouts, no foul-outs and no bonus;
-- after any foul, asks **Shooting foul? On a 2 / On a 3 / No**. Pick the shot and tap the shooter: the shot's
-  value minus 1 is added at once (1 for a 2, 2 for a 3) and the shooter is ready for the one free throw.
+- handles the shooting-foul rule (points for the shot + 1 free throw) through **+1**: after each +1 the pad
+  asks **Free throw?** — **Free throw** (or just carry on) keeps it a made free throw; **Point only** or
+  **2 points** (fouled on a 3) turns it into points that don't count as a shot, so FT% isn't affected.
+  Reports show these in an **SF** column (and as green slashes in the running score).
 
 Otherwise the live screen looks and works exactly like a real game (same score display, foul boxes and
 timeout pips, just without limits), so scoring a scrimmage is good practice for game day.

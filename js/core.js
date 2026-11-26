@@ -9,8 +9,8 @@
  * Types: 'make' (v 1|2|3), 'miss' (v 1|2|3), 'reb' (v 'o'|'d'), 'ast', 'stl',
  *        'blk', 'to', 'chg' (charge taken), 'foul' (v 'p'|'t'), 'timeout' (v 'full'|'short'),
  *        'sub' (v 'in'|'out'; only in games with subLog: true, which start from game.starters),
- *        'award' (v 1|2: points given for a shooting foul under the scrimmage rule; counts as
- *        points but not as a shot).
+ *        'award' (v 1|2: points for being fouled on a shot under the scrimmage rule; counts as
+ *        points, line.awd, but not as a shot or a free throw).
  */
 (function (root) {
   'use strict';
@@ -35,7 +35,7 @@
     timeoutsUnlimited: false,
     scoreResets: false,    // each period is scored on its own (the total is still kept)
     openEnded: false,      // more periods can be added at any time; no overtime
-    shotFoulAward: false   // shooting foul: shot value − 1 awarded at once, then 1 free throw
+    shotFoulAward: false   // shooting foul = points + 1 free throw: after a +1, ask if it was a free throw
   };
 
   function copyRules(r) {
@@ -76,7 +76,7 @@
 
   function emptyLine() {
     return { pts: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, ftm: 0, fta: 0,
-             oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, to: 0, pf: 0, tf: 0, chg: 0 };
+             oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, to: 0, pf: 0, tf: 0, chg: 0, awd: 0 };
   }
 
   function addShot(line, made, v) {
@@ -98,7 +98,7 @@
       case 'blk': line.blk++; break;
       case 'to': line.to++; break;
       case 'chg': line.chg++; break;
-      case 'award': line.pts += e.v; break;
+      case 'award': line.pts += e.v; line.awd += e.v; break;
       case 'foul': line.pf++; if (e.v === 't') line.tf++; break;
     }
   }

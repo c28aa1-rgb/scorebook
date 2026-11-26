@@ -34,6 +34,8 @@
     '.rpt td.dim{color:var(--ink2)}',
     '.rpt .line td.b{font-size:1.05rem}',
     '.rpt .pw{margin:0.4rem 0 0;font-weight:700;font-size:0.85rem}',
+    '.rpt .key{margin:0.3rem 0 0;font-size:0.72rem;color:var(--ink2)}',
+    '.rpt .c.ma:after{content:"";position:absolute;left:18%;right:18%;top:0.48rem;height:2px;background:var(--ledger);transform:rotate(-38deg)}',
     '.rpt-grid{display:flex;flex-wrap:wrap;gap:0 1.75rem}',
     '.rpt-grid>div{flex:1 1 16rem;min-width:0}',
     '.rpt dl{display:flex;flex-wrap:wrap;margin:0;font-size:0.85rem}',
@@ -160,27 +162,31 @@
     return h.join('');
   }
 
+  // Show the SF column (points for being fouled on a shot, scrimmage rule) when the game uses it.
+  function hasSF(c) { return !!(c.rules.shotFoulAward || c.team.us.awd || c.team.them.awd); }
+  var SF_KEY = '<p class="key">SF = points for being fouled on a shot. They count in PTS but not as shots or free throws, so percentages aren’t affected.</p>';
+
   function ourBox(game, meta, c, names) {
-    var rows = boxPlayers(game, meta, c), t = c.team.us, pm = c.pm;
+    var rows = boxPlayers(game, meta, c), t = c.team.us, pm = c.pm, sf = hasSF(c);
     var h = ['<div class="tw"><table><thead><tr><th class="l">#</th><th class="l">Player</th>',
-      '<th class="b">PTS</th><th>FG</th><th>3P</th><th>FT</th><th>OR</th><th>DR</th><th>REB</th>',
+      '<th class="b">PTS</th><th>FG</th><th>3P</th><th>FT</th>' + (sf ? '<th>SF</th>' : '') + '<th>OR</th><th>DR</th><th>REB</th>',
       '<th>AST</th><th>STL</th><th>BLK</th><th>CHG</th><th>TO</th><th>PF</th>' + (pm ? '<th>+/−</th>' : '') + '</tr></thead><tbody>'];
     rows.forEach(function (r) {
       var l = r.line, pmCell = pm ? '<td>' + C.fmtPm(pm[r.id]) + '</td>' : '';
       h.push('<tr><td class="jr">' + esc(r.num) + '</td><td class="nm">' + esc(playerName(r.p, names)) +
         '</td><td class="b">' + l.pts + '</td><td>' + ma(l.fgm, l.fga) + '</td><td>' + ma(l.tpm, l.tpa) +
-        '</td><td>' + ma(l.ftm, l.fta) + '</td><td>' + l.oreb + '</td><td>' + l.dreb + '</td><td>' +
+        '</td><td>' + ma(l.ftm, l.fta) + (sf ? '</td><td>' + (l.awd || 0) : '') + '</td><td>' + l.oreb + '</td><td>' + l.dreb + '</td><td>' +
         (l.oreb + l.dreb) + '</td><td>' + l.ast + '</td><td>' + l.stl + '</td><td>' + l.blk +
         '</td><td>' + (l.chg || 0) + '</td><td>' + l.to + '</td>' + pfCell(l, c.rules) + pmCell + '</tr>');
     });
     h.push('<tr class="tot"><td class="l" colspan="2">Team</td><td>' + t.pts + '</td><td>' + ma(t.fgm, t.fga) +
-      '</td><td>' + ma(t.tpm, t.tpa) + '</td><td>' + ma(t.ftm, t.fta) + '</td><td>' + t.oreb + '</td><td>' +
+      '</td><td>' + ma(t.tpm, t.tpa) + '</td><td>' + ma(t.ftm, t.fta) + (sf ? '</td><td>' + (t.awd || 0) : '') + '</td><td>' + t.oreb + '</td><td>' +
       t.dreb + '</td><td>' + (t.oreb + t.dreb) + '</td><td>' + t.ast + '</td><td>' + t.stl + '</td><td>' +
       t.blk + '</td><td>' + (t.chg || 0) + '</td><td>' + t.to + '</td><td>' + t.pf + (t.tf ? ' (' + t.tf + 'T)' : '') + '</td>' + (pm ? '<td></td>' : '') + '</tr>');
     var on = C.pctShown(meta.settings);
     h.push('<tr class="pct"><td colspan="3"></td><td>' + pctText(on.fg, t.fgm, t.fga) + '</td><td>' +
-      pctText(on.tp, t.tpm, t.tpa) + '</td><td>' + pctText(on.ft, t.ftm, t.fta) + '</td><td colspan="' + (pm ? 10 : 9) + '"></td></tr>');
-    h.push('</tbody></table></div>');
+      pctText(on.tp, t.tpm, t.tpa) + '</td><td>' + pctText(on.ft, t.ftm, t.fta) + '</td><td colspan="' + (9 + (pm ? 1 : 0) + (sf ? 1 : 0)) + '"></td></tr>');
+    h.push('</tbody></table></div>' + (sf ? SF_KEY : ''));
     return h.join('');
   }
 
@@ -189,16 +195,17 @@
       if (a === '') return 1; if (b === '') return -1;
       return byJersey({ num: a }, { num: b });
     });
+    var sf = hasSF(c);
     var h = ['<div class="tw"><table><thead><tr><th class="l">#</th><th class="b">PTS</th><th>FGM</th>',
-      '<th>3PM</th><th>FTM</th><th>PF</th></tr></thead><tbody>'];
+      '<th>3PM</th><th>FTM</th>' + (sf ? '<th>SF</th>' : '') + '<th>PF</th></tr></thead><tbody>'];
     keys.forEach(function (k) {
       var l = c.opp[k];
       h.push('<tr><td class="jr">' + (k === '' ? '<span class="dim">Team</span>' : esc(k)) + '</td><td class="b">' +
-        l.pts + '</td><td>' + l.fgm + '</td><td>' + l.tpm + '</td><td>' + l.ftm + '</td>' + pfCell(l, c.rules) + '</tr>');
+        l.pts + '</td><td>' + l.fgm + '</td><td>' + l.tpm + '</td><td>' + l.ftm + '</td>' + (sf ? '<td>' + (l.awd || 0) + '</td>' : '') + pfCell(l, c.rules) + '</tr>');
     });
     var t = c.team.them;
     h.push('<tr class="tot"><td class="l">Team</td><td>' + t.pts + '</td><td>' + t.fgm + '</td><td>' + t.tpm +
-      '</td><td>' + t.ftm + '</td><td>' + t.pf + '</td></tr></tbody></table></div>');
+      '</td><td>' + t.ftm + '</td>' + (sf ? '<td>' + (t.awd || 0) + '</td>' : '') + '<td>' + t.pf + '</td></tr></tbody></table></div>');
     return h.join('');
   }
 
@@ -238,8 +245,8 @@
       if (!C.points(e)) continue;
       var start = tot[e.tm] + 1;
       tot[e.tm] += e.v;
-      // Points awarded for a shooting foul are drawn as a slash, like a basket.
-      for (var n = start; n <= tot[e.tm]; n++) cells[e.tm][n] = { v: e.t === 'award' ? 2 : e.v, last: n === tot[e.tm] };
+      // Shooting-foul points (scrimmage rule) get a green slash, so they aren't mistaken for a basket.
+      for (var n = start; n <= tot[e.tm]; n++) cells[e.tm][n] = { v: e.t === 'award' ? 'a' : e.v, last: n === tot[e.tm] };
       var jr = e.tm === 'us' ? (findPlayer(game, meta, e.p) || {}).num : e.p;
       cells[e.tm][tot[e.tm]].jr = jr || '';
     }
@@ -261,7 +268,8 @@
       h.push('<div class="led-blk"><div class="led-tm"><span>' + esc(meta.team.short || 'US') +
         '</span><span>OPP</span></div><div class="led-rows">' + row('us', from) + row('them', from) + '</div></div>');
     }
-    h.push('<div class="led-key">Slash = 2 pts · circled = 3 pts · dot = free throw · jersey under the last point of each basket · heavy line = end of period</div></div>');
+    h.push('<div class="led-key">Slash = 2 pts · circled = 3 pts · dot = free throw' + (hasSF(c) ? ' · green slash = shooting-foul point' : '') +
+      ' · jersey under the last point of each basket · heavy line = end of period</div></div>');
     return h.join('');
   }
 
@@ -337,7 +345,7 @@
     lines.push('');
     var on = C.pctShown(meta.settings);
     lines.push('Team: FG ' + ma(t.fgm, t.fga) + (on.fg ? ' (' + pctText(true, t.fgm, t.fga) + ')' : '') + ', 3P ' + ma(t.tpm, t.tpa) +
-      ', FT ' + ma(t.ftm, t.fta) + ', REB ' + (t.oreb + t.dreb) + ', AST ' + t.ast + ', TO ' + t.to);
+      ', FT ' + ma(t.ftm, t.fta) + (t.awd ? ', shooting-foul points ' + t.awd : '') + ', REB ' + (t.oreb + t.dreb) + ', AST ' + t.ast + ', TO ' + t.to);
     if (opts && opts.url) { lines.push(''); lines.push('Full report: ' + opts.url); }
     return lines.join('\n');
   }

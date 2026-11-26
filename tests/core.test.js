@@ -105,7 +105,9 @@ test('scrimmage rules', function () {
   var c = SB.computeGame({ events: evs, quarter: 7, rules: r });
   assert.strictEqual(c.score.us, 4);
   assert.strictEqual(c.players.a.pts, 4);
-  assert.deepStrictEqual([c.players.a.fgm, c.players.a.fga, c.players.a.ftm], [1, 1, 1], 'awards are not shots');
+  assert.deepStrictEqual([c.players.a.fgm, c.players.a.fga, c.players.a.ftm, c.players.a.fta], [1, 1, 1, 1], 'awards are not shots');
+  assert.strictEqual(c.players.a.awd, 1);
+  assert.strictEqual(c.team.them.awd, 2);
   assert.strictEqual(c.opp['4'].pts, 2);
   // No foul-outs, no bonus, unlimited timeouts, quarters past 6 are still quarters.
   assert.strictEqual(SB.outReason(c.players.b, r), '');
