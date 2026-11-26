@@ -645,7 +645,9 @@
     h.push('<button class="lv-home" data-a="go" data-x="#home"><span class="ic">☰</span>Games</button>');
     if (fsAvailable()) h.push('<button class="lv-fs" data-a="fullscreen"><span class="fs-ic"></span>' + (fsActive() ? 'Exit' : 'Full') + '</button>');
     h.push(teamBlock('us', meta.team.name, c));
-    h.push('<button class="lv-q" data-a="drawer" data-x="quarter"><span class="num">' + C.periodLabel(g.quarter, r) + '</span><small>PERIOD</small></button>');
+    // When each period is scored on its own, its score sits under the period; the big scores stay game totals.
+    h.push('<button class="lv-q" data-a="drawer" data-x="quarter"><span class="num">' + C.periodLabel(g.quarter, r) + '</span><small>' +
+      (r.scoreResets ? (r.periods === 2 ? 'HALF ' : 'QTR ') + (c.byPeriod.us[g.quarter - 1] || 0) + '–' + (c.byPeriod.them[g.quarter - 1] || 0) : 'PERIOD') + '</small></button>');
     h.push(teamBlock('them', g.opponent, c));
     h.push('<button class="lv-undo" data-a="undo"' + (g.events.length ? '' : ' disabled') + '><span class="ic">↶</span>Undo</button>');
     h.push('</header>');
@@ -679,28 +681,25 @@
     return h.join('');
   };
 
+  // Scrimmage rules (no bonus, unlimited timeouts) keep the same look as a real game, so a
+  // scrimmage doubles as practice: 5 team-foul boxes and the usual pips, just never limiting.
   function teamBlock(tm, name, c) {
     var fouls = c.currentFouls[tm], r = c.rules, left = c.timeoutsLeft[tm], h = [], i;
-    var boxes = '';
-    if (r.bonusAt > 0) {
-      boxes = '<span class="boxes">';
-      for (i = 0; i < r.bonusAt; i++) boxes += '<span class="box' + (i < fouls ? ' on' : '') + '"></span>';
-      boxes += '</span>' + (fouls > r.bonusAt ? '<span>+' + (fouls - r.bonusAt) + '</span>' : '');
-    }
-    var to;
+    var nBox = r.bonusAt > 0 ? r.bonusAt : 5;
+    var boxes = '<span class="boxes">';
+    for (i = 0; i < nBox; i++) boxes += '<span class="box' + (i < fouls ? ' on' : '') + '"></span>';
+    boxes += '</span>' + (fouls > nBox ? '<span>+' + (fouls - nBox) + '</span>' : '');
+    var full = left.full, short = left.short;
     if (r.timeoutsUnlimited) {
-      to = c.timeoutsUsed[tm].full + c.timeoutsUsed[tm].short;
-      to = 'TO <span>' + (to ? to + ' used' : 'unlimited') + '</span>';
-    } else {
-      var pips = '<span class="pips">';
-      for (i = 0; i < c.timeoutsAllot.full; i++) pips += '<span class="pip' + (i < left.full ? ' on' : '') + '"></span>';
-      for (i = 0; i < c.timeoutsAllot.short; i++) pips += '<span class="pip s' + (i < left.short ? ' on' : '') + '"></span>';
-      to = 'TO ' + pips + '</span><span>' + left.full + '+' + left.short + '</span>';
+      full = Math.max(0, c.timeoutsAllot.full - c.timeoutsUsed[tm].full);
+      short = Math.max(0, c.timeoutsAllot.short - c.timeoutsUsed[tm].short);
     }
-    // When each period is scored on its own, the big number is this period's score.
-    var big = r.scoreResets ? c.byPeriod[tm][c.quarter - 1] || 0 : c.score[tm];
-    h.push('<div class="tm ' + tm + '"><span class="tm-score">' + big + '</span><div class="tm-info">');
-    h.push('<span class="tm-name">' + esc(name) + (r.scoreResets ? ' <small>· total ' + c.score[tm] + '</small>' : '') + '</span>');
+    var pips = '<span class="pips">';
+    for (i = 0; i < c.timeoutsAllot.full; i++) pips += '<span class="pip' + (i < full ? ' on' : '') + '"></span>';
+    for (i = 0; i < c.timeoutsAllot.short; i++) pips += '<span class="pip s' + (i < short ? ' on' : '') + '"></span>';
+    var to = 'TO ' + pips + '</span><span>' + (r.timeoutsUnlimited ? '∞' : full + '+' + short) + '</span>';
+    h.push('<div class="tm ' + tm + '"><span class="tm-score">' + c.score[tm] + '</span><div class="tm-info">');
+    h.push('<span class="tm-name">' + esc(name) + '</span>');
     // Shown on the team that shoots: BONUS once the other side reaches the bonus foul,
     // "1 TO BONUS" when their next foul gets there.
     var bonus = c.inDoubleBonus[tm] ? '<span class="bonus">DOUBLE BONUS</span>' : c.inBonus[tm] ? '<span class="bonus">BONUS</span>' :
@@ -711,12 +710,11 @@
     return h.join('');
   }
 
+  // With no foul-out limit (scrimmages) the usual 5 boxes still show, with "+2" past five.
   function foulBoxes(pf, rules, tf) {
-    // No foul-out limit: just the count.
-    if (!(rules.foulOut > 0)) return '<span class="pf-n num">' + pf + ' PF</span>' + (tf ? '<span class="tag-t">' + tf + 'T</span>' : '');
-    var s = '<span class="boxes">';
-    for (var i = 0; i < rules.foulOut; i++) s += '<span class="box' + (i < pf ? ' on' : '') + '"></span>';
-    return s + '</span>' + (tf ? '<span class="tag-t">' + tf + 'T</span>' : '');
+    var n = rules.foulOut > 0 ? rules.foulOut : 5, s = '<span class="boxes">';
+    for (var i = 0; i < n; i++) s += '<span class="box' + (i < pf ? ' on' : '') + '"></span>';
+    return s + '</span>' + (pf > n ? '<span class="pf-over num">+' + (pf - n) + '</span>' : '') + (tf ? '<span class="tag-t">' + tf + 'T</span>' : '');
   }
 
   function outTag(l, rules) {
@@ -1278,7 +1276,7 @@
     startTimer(g, p[0], p[1], e.s);
     ui.drawer = null;
     var c = C.computeGame(g), left = c.timeoutsLeft[p[0]];
-    toast((p[0] === 'us' ? meta.team.name : g.opponent) + ' timeout. ' + left.full + ' full + ' + left.short + ' short left.');
+    toast((p[0] === 'us' ? meta.team.name : g.opponent) + ' timeout.' + (c.rules.timeoutsUnlimited ? '' : ' ' + left.full + ' full + ' + left.short + ' short left.'));
     render();
   };
 
@@ -1330,7 +1328,7 @@
       // Say how the period that just ended went, since the scoreboard goes back to 0–0.
       var a = c.byPeriod.us[prev - 1], b = c.byPeriod.them[prev - 1];
       msg = C.periodLabel(prev, r) + ' ' + (a > b ? 'to ' + meta.team.name : a < b ? 'to ' + g.opponent : 'tied') + ' ' + a + '–' + b + '. ' +
-        C.periodLabel(g.quarter, r) + ' starts at 0–0.';
+        C.periodLabel(g.quarter, r) + ' started.';
     } else {
       msg = C.periodLabel(g.quarter, r) + ' started' + (r.bonusAt ? ' · team fouls ' + c.currentFouls.us + '–' + c.currentFouls.them : '');
     }

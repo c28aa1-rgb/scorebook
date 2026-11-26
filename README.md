@@ -85,12 +85,15 @@ last scrimmage's settings are remembered, and **More options** has every rule. B
 
 - doesn't count toward the season record, stats, leaders or player game logs (it shows with an **S** and a
   Scrimmage tag in the games list);
-- restarts the score at 0–0 each quarter: the top bar shows this quarter's score with the running total
-  beside the team name, and the report shows each quarter's winner and quarters won;
+- scores each quarter on its own: this quarter's score shows under the period in the top bar (QTR 4–2),
+  ending a quarter says who won it, and the report shows each quarter's winner and quarters won;
 - lets you add quarters whenever you like (Period button → **End Q6 · start Q7**) and end at any time;
-- has unlimited timeouts, no foul-outs (fouls show as a count) and no bonus;
+- has unlimited timeouts, no foul-outs and no bonus;
 - after any foul, asks **Shooting foul? On a 2 / On a 3 / No**. Pick the shot and tap the shooter: the shot's
   value minus 1 is added at once (1 for a 2, 2 for a 3) and the shooter is ready for the one free throw.
+
+Otherwise the live screen looks and works exactly like a real game (same score display, foul boxes and
+timeout pips, just without limits), so scoring a scrimmage is good practice for game day.
 
 ## Rules
 

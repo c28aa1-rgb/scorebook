@@ -174,9 +174,8 @@ button:disabled { cursor: default; opacity: 0.35; }
 .card.sel { border-color: var(--accent); background: var(--accent-soft); }
 .card.sel .jr { background: var(--accent); color: #fff; border-color: var(--accent); }
 .card.empty { justify-content: center; border-style: dashed; color: var(--ink2); font-weight: 700; padding: 0; }
-/* Foul count when there's no foul-out limit (scrimmages). */
-.pf-n { font-size: 0.9rem; font-weight: 700; color: var(--ink2); }
-.tm-name small { font-weight: 400; color: #9FB2B0; font-family: var(--f-num); }
+/* Fouls past the five boxes when there's no foul-out limit (scrimmages). */
+.pf-over { margin-left: 0.25rem; font-size: 0.8rem; font-weight: 700; color: var(--ink2); vertical-align: middle; }
 .tag-out { font-family: var(--f-num); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; color: var(--out); }
 .tag-t {
   display: inline-block; vertical-align: middle; margin-left: 0.3rem; padding: 0 0.25rem;
