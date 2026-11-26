@@ -149,7 +149,8 @@ and the same publish key.
 node tools/serve.js        # http://localhost:8080
 node tests/core.test.js    # stat and rules tests
 node tests/schedule.test.js  # schedule import tests
-node tools/make-icons.js   # regenerate icons
+# icons: icons/icon.svg is the source. To regenerate the PNGs, open
+# http://localhost:8080/tools/render-icons.html and save each image into icons/.
 ```
 
 When you change any app file, bump `VERSION` in `sw.js` so tablets pick up the update. Tablets check for a

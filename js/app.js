@@ -201,6 +201,19 @@
     };
   }
 
+  // The launch animation plays for about a second from page load (less if motion is reduced),
+  // then fades; if loading takes longer, it stays until the app is ready.
+  function hideSplash() {
+    var s = document.getElementById('splash');
+    if (!s) return;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var since = window.performance && performance.now ? performance.now() : 0;
+    setTimeout(function () {
+      s.className = 'done';
+      setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 350);
+    }, reduce ? 0 : Math.max(0, 1250 - since));
+  }
+
   function boot() {
     DB.open(function () {
       DB.loadMeta(function (err, m) {
@@ -212,6 +225,7 @@
           applyTheme();
           window.addEventListener('hashchange', onRoute);
           window.addEventListener('resize', fitScale);
+          hideSplash();
           document.addEventListener('visibilitychange', syncWake);
           window.addEventListener('focus', syncWake);
           window.addEventListener('pageshow', syncWake);
