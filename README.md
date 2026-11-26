@@ -85,6 +85,9 @@ The next three games show under **Up next** on the home screen; **Start game** o
 opponent, date, place and home/away filled in, and the schedule then shows Resume or the final score.
 
 On New game you can also type the opponent's jersey numbers so their column is ready at tip-off.
+When it's a team you've already played this season, their numbers from those games (games and
+scrimmages) are filled in as soon as you type or pick the name; remove anyone who isn't playing. Numbers
+you type yourself are never replaced.
 Schedule entries can be scrimmages (Start scrimmage opens the scrimmage setup) or have the opponent
 `TBD` (tournaments), which leaves the opponent blank on New game.
 

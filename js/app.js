@@ -791,9 +791,42 @@
 
   // ----- New game -----
   var draft = null;
+
+  // Jersey numbers this opponent used in earlier games this season (scrimmages too), so a rematch
+  // starts with their column ready: { nums: '1 3 7', games: 2 }, or null if we haven't played them.
+  function oppKey(name) { return (name || '').trim().toLowerCase(); }
+
+  function pastOppNums(name) {
+    var key = oppKey(name), seen = {}, nums = [], n = 0, shown = '';
+    if (!key) return null;
+    seasonGames().forEach(function (g) {
+      if (oppKey(g.opponent) !== key) return;
+      n++; shown = shown || g.opponent.trim();
+      (g.oppNums || []).concat((g.events || []).filter(function (e) { return e.tm === 'them' && e.p; }).map(function (e) { return e.p; }))
+        .forEach(function (x) { if (!seen[x]) { seen[x] = true; nums.push(x); } });
+    });
+    if (!nums.length) return null;
+    nums.sort(function (a, b) { return R.byJersey({ num: a }, { num: b }); });
+    return { nums: nums.join(' '), games: n, name: shown };
+  }
+
+  // Fills in their numbers when the opponent is one we've played. Numbers you typed yourself are
+  // kept; a filled-in list you edited is kept for that opponent but replaced if you change the opponent.
+  // Returns the note to show under the field ('' when nothing was filled in).
+  function autofillOpp() {
+    var key = oppKey(draft.opponent), e = draft.oppEdited;
+    if (e && (!e.fromAuto || e.key === key)) return e.fromAuto ? draft.oppNote || '' : '';
+    draft.oppEdited = null;
+    var past = pastOppNums(draft.opponent);
+    draft.oppNumsText = past ? past.nums : '';
+    draft.oppAuto = draft.oppNumsText;
+    return draft.oppNote = past ? 'Filled in from ' + (past.games === 1 ? 'the earlier game' : past.games + ' earlier games') + ' vs ' + past.name +
+      ' this season. Remove anyone who isn’t playing; new numbers can be added during the game.' : '';
+  }
   screens['new'] = function () {
     var ps = seasonPlayers();
     if (!draft) draft = { opponent: '', date: today(), location: '', homeAway: 'home', starters: [] };
+    var oppNote = autofillOpp();
     var h = [pageHead('New game', backBtn('#home', 'Home'),
       '<button class="btn pri" data-a="startGame"' + (ps.length ? '' : ' disabled') + '>' + (draft.type === 'scrimmage' ? 'Start scrimmage' : 'Start game') + '</button>')];
     h.push('<div class="pg-bd">');
@@ -814,7 +847,7 @@
       '<button data-a="draftSide" data-x="away" class="' + (draft.homeAway === 'away' ? 'on' : '') + '">Away</button></div></div>');
     h.push('<div class="fld" style="flex-basis:100%"><label for="ng-nums">Their jersey numbers (optional)</label><input id="ng-nums" data-draft="oppNumsText" value="' +
       esc(draft.oppNumsText || '') + '" placeholder="e.g. 1 3 7 13 20 32" autocomplete="off"></div>');
-    h.push('</div><p class="note">Entering their numbers now sets up their column before tip-off. You can still add numbers during the game.</p>');
+    h.push('</div><p class="note" id="ng-nums-note">' + (oppNote || 'Entering their numbers now sets up their column before tip-off. You can still add numbers during the game.') + '</p>');
     h.push('<h2>Starters · ' + draft.starters.length + ' of 5</h2><div class="pick">');
     ps.forEach(function (p) {
       var on = draft.starters.indexOf(p.id) >= 0;
@@ -2082,6 +2115,14 @@
   app.addEventListener('input', function (ev) {
     var k = ev.target.getAttribute('data-draft');
     if (k) draft[k] = ev.target.value;
+    if (k === 'oppNumsText') draft.oppEdited = { key: oppKey(draft.opponent), fromAuto: !!draft.oppAuto };
+    // Typing the opponent's name fills in the numbers from games against them (without a re-render,
+    // which would drop the keyboard).
+    if (k === 'opponent') {
+      var note = autofillOpp(), nf = document.getElementById('ng-nums'), nn = document.getElementById('ng-nums-note');
+      if (nf && nf.value !== draft.oppNumsText) nf.value = draft.oppNumsText;
+      if (nn) nn.textContent = note || 'Entering their numbers now sets up their column before tip-off. You can still add numbers during the game.';
+    }
     if (ev.target.getAttribute('data-schedtext')) ui.schedText = ev.target.value;
   });
 
