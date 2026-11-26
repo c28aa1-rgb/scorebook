@@ -59,20 +59,28 @@
     return ((p.first || '') + (p.last ? ' ' + p.last.charAt(0) + '.' : '')).trim();
   }
 
+  // Test mode: try anything without keeping it. Changes live only in memory (nothing is saved on
+  // the tablet or synced, and changes from other tablets are ignored), so a reload brings back the
+  // real data. Deliberately not remembered across reloads.
+  var testMode = false;
+
   // Every save goes to the tablet first, then to the cloud when sync is on. The updated time
   // decides which copy wins when two tablets have changed the same thing.
   function saveMeta() {
+    if (testMode) return;
     meta.updated = Date.now();
     DB.saveMeta(meta, function (err) { if (err) toast('Could not save. Storage may be full.'); });
     if (syncing) Cloud.pushMeta(meta);
   }
   function saveGame(g) {
+    if (testMode) return;
     g.updated = Date.now();
     if (syncing) g.synced = true;
     DB.saveGame(g, function (err) { if (err) toast('Could not save game. Storage may be full.'); });
     if (syncing) Cloud.pushGame(g);
   }
   function removeGame(id) {
+    if (testMode) return;
     DB.deleteGame(id);
     if (syncing) Cloud.removeGame(id);
   }
@@ -328,10 +336,11 @@
         if (!lg || (rg.updated || 0) > (lg.updated || 0)) takeRemoteGame(rg);
       });
       Cloud.listen(onRemoteMeta, function (rg) {
+        if (testMode) return;
         var lg = gameById(rg.id);
         if (!lg || (rg.updated || 0) > (lg.updated || 0)) { takeRemoteGame(rg); refresh(); }
       }, function (id) {
-        if (!gameById(id)) return;
+        if (testMode || !gameById(id)) return;
         games = games.filter(function (g) { return g.id !== id; });
         DB.deleteGame(id);
         if (route.id === id) go('#home'); else refresh();
@@ -346,7 +355,7 @@
     DB.saveGame(rg, function () {});
   }
   function onRemoteMeta(rm) {
-    if (!rm || (rm.updated || 0) <= (meta.updated || 0)) return;
+    if (testMode || !rm || (rm.updated || 0) <= (meta.updated || 0)) return;
     meta = rm; meta.schedule = meta.schedule || [];
     DB.saveMeta(meta, function () {});
     applyTheme();
@@ -1268,10 +1277,18 @@
       '<div class="form"><button class="btn" data-a="checkUpdate">Check for updates</button></div>');
 
     var hasSample = games.some(function (g) { return g.sample; }) || meta.players.some(function (p) { return p.sample; });
-    h.push('<h2>Practice</h2><p class="note">Sample games add a demo roster (if yours is empty), one finished game and one game in progress to practice on.</p>' +
-      '<div class="form"><button class="btn" data-a="loadSample">Load sample games</button>' +
-      (hasSample ? '<button class="btn danger' + (ui.armed === 'rmSample' ? ' armed' : '') + '" data-a="removeSample">' +
-        (ui.armed === 'rmSample' ? 'Confirm: remove all sample data' : 'Remove sample data') + '</button>' : '') + '</div>');
+    if (testMode) {
+      h.push('<h2>Test mode</h2><p class="note"><b>Test mode is on.</b> Nothing you do is saved or synced. Exit test mode (or reload the app) ' +
+        'to go back to your real games exactly as they were.</p><div class="form"><button class="btn pri" data-a="testExit">Exit test mode</button>' +
+        (hasSample ? '' : '<button class="btn" data-a="loadSample">Add sample games</button>') + '</div>');
+    } else {
+      h.push('<h2>Test mode</h2><p class="note">Practice or try things out without keeping anything: score a pretend game, change settings, ' +
+        'delete games. Nothing is saved or synced, and reloading the app puts everything back. “With sample games” adds a demo roster ' +
+        '(if yours is empty), a finished game and a game in progress to practice on.</p>' +
+        '<div class="form"><button class="btn" data-a="testStart">Start test mode</button><button class="btn" data-a="testStart" data-x="sample">Start with sample games</button>' +
+        (hasSample ? '<button class="btn danger' + (ui.armed === 'rmSample' ? ' armed' : '') + '" data-a="removeSample">' +
+          (ui.armed === 'rmSample' ? 'Confirm: remove all sample data' : 'Remove saved sample data') + '</button>' : '') + '</div>');
+    }
     h.push('</div>');
     return h.join('');
   };
@@ -1772,9 +1789,24 @@
     s.games.forEach(function (g) { games.push(g); saveGame(g); });
     s.schedule.forEach(function (x) { meta.schedule.push(x); });
     saveMeta();
-    toast('Sample games added.');
+    toast(testMode ? 'Sample games added for this test.' : 'Sample games added.');
     go('#home');
   };
+
+  // Test mode on: from here on nothing is saved (see testMode). A bar along the bottom says so.
+  actions.testStart = function (x) {
+    testMode = true;
+    document.body.className += ' test-mode';
+    var bar = document.createElement('div');
+    bar.id = 'testbar';
+    bar.innerHTML = '<span>TEST MODE · nothing is saved</span><button type="button">Exit</button>';
+    bar.querySelector('button').onclick = function () { location.reload(); };
+    document.body.appendChild(bar);
+    if (x === 'sample') { actions.loadSample(); return; }
+    toast('Test mode is on. Nothing you do now is saved.');
+    go('#home');
+  };
+  actions.testExit = function () { location.reload(); };
   actions.removeSample = function () {
     if (ui.armed !== 'rmSample') { ui.armed = 'rmSample'; return render(); }
     ui.armed = null;
@@ -1985,6 +2017,7 @@
 
   function importBackup(file) {
     if (!file) return;
+    if (testMode) { toast('Exit test mode before restoring a backup.'); return; }
     var rd = new FileReader();
     rd.onload = function () {
       var data;

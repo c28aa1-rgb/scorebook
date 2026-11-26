@@ -75,6 +75,18 @@ button:disabled { cursor: default; opacity: 0.35; }
   .sp-slash { animation: none; stroke-dashoffset: 0; }
 }
 
+/* ---------- Test mode: amber frame round the screen and a small bar at the bottom ---------- */
+body.test-mode::after {
+  content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 40; pointer-events: none;
+  box-shadow: inset 0 0 0 4px var(--warn);
+}
+#testbar {
+  position: fixed; left: 50%; bottom: 0.35rem; z-index: 41; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.2rem 0.25rem 0.2rem 0.8rem; border-radius: 1rem;
+  background: var(--warn); color: var(--ink); font-family: var(--f-num); font-weight: 700; font-size: 0.75rem; letter-spacing: 0.08em;
+}
+#testbar button { min-height: 1.8rem; padding: 0 0.8rem; border-radius: 0.9rem; background: var(--ink); color: #fff; font-weight: 700; letter-spacing: 0.04em; }
+
 /* ---------- Sign-in screen (cloud sync) ---------- */
 .gate {
   min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.9rem;

@@ -83,6 +83,13 @@ opponent, date, place and home/away filled in, and the schedule then shows Resum
 
 On New game you can also type the opponent's jersey numbers so their column is ready at tip-off.
 
+## Test mode
+
+Settings → **Test mode** → **Start test mode** (or **Start with sample games**) lets you practice or try
+things without keeping them: nothing is saved on the tablet or synced, and changes from other tablets
+are ignored meanwhile. An amber frame and a **TEST MODE · nothing is saved · Exit** bar show it's on.
+**Exit**, or any reload, puts everything back exactly as it was.
+
 ## Scrimmages
 
 On New game, set **Type** to **Scrimmage**. The quick setup has quarters (4, 5, 6 or 8) and minutes; the
