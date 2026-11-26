@@ -435,6 +435,7 @@
     var parts = (location.hash || '#home').slice(1).split('/');
     route = { name: parts[0] || 'home', id: parts[1] || null };
     ui.drawer = null; ui.prompt = null; ui.armed = null;
+    document.documentElement.classList.remove('print-stats');
     if (route.name === 'game') {
       var g = gameById(route.id);
       if (!g) return go('#home');
@@ -510,6 +511,7 @@
     var h = [];
     h.push(pageHead(meta.team.name + ' · ' + season.name, '',
       (fsAvailable() ? '<button class="btn sm" data-a="fullscreen">' + (fsActive() ? 'Exit full screen' : 'Full screen') + '</button>' : '') +
+      '<button class="btn sm" data-a="go" data-x="#stats/team">Stats</button>' +
       '<button class="btn sm" data-a="go" data-x="#schedule">Schedule</button>' +
       '<button class="btn sm" data-a="go" data-x="#roster">Roster</button>' +
       '<button class="btn sm" data-a="go" data-x="#settings">Settings</button>' +
@@ -556,9 +558,11 @@
     }
 
     if (finals.length) h.push('<h2>Season leaders</h2>' + leaders(s));
-    h.push('<h2>Season stats</h2>');
-    h.push(seasonTable(s));
-    if (finals.length) h.push('<p class="note">Tap a player for their game-by-game log.</p>');
+    h.push('<h2>Stats</h2><div class="stat-links">' + [['team', 'Team', 'Record, scoring by quarter, shooting, situations'],
+      ['players', 'Players', 'Per game, totals, shooting, advanced'], ['leaders', 'Leaders', 'Top 5 in every category, single-game highs'],
+      ['lineups', 'Lineups', 'Five-player units and starting lineups'], ['games', 'Game log', 'Every game’s team numbers']].map(function (x) {
+      return '<button data-a="go" data-x="#stats/' + x[0] + '"><b>' + x[1] + '</b><small>' + x[2] + '</small></button>';
+    }).join('') + '</div>');
     h.push('</div>');
     return h.join('');
   };
@@ -608,63 +612,102 @@
     return h.join('');
   }
 
-  function seasonTable(s) {
-    var ps = seasonPlayers();
-    if (!ps.length) return '<p class="note">Season totals appear here once you have a roster and finished games.</p>';
-    var on = C.pctShown(meta.settings);
-    var h = ['<div class="tw"><table class="st"><thead><tr><th class="l">#</th><th class="l">Player</th><th>GP</th>',
-      '<th>PTS</th><th>PPG</th><th>REB</th><th>RPG</th><th>AST</th><th>STL</th><th>CHG</th><th>TO</th><th>FG%</th><th>3P%</th><th>FT%</th><th>PF</th><th>+/−</th></tr></thead><tbody>'];
-    ps.forEach(function (p) {
-      var row = s.players[p.id] || { gp: 0, line: C.emptyLine(), pm: 0, pmGp: 0 }, l = row.line, reb = l.oreb + l.dreb;
-      h.push('<tr class="tap" data-a="go" data-x="#player/' + p.id + '"><td class="l b">' + esc(jerseyOf(p)) + '</td><td class="l nm">' + esc(shortName(p)) + '</td><td>' + row.gp +
-        '</td><td>' + l.pts + '</td><td class="b">' + avg(l.pts, row.gp) + '</td><td>' + reb + '</td><td>' + avg(reb, row.gp) +
-        '</td><td>' + l.ast + '</td><td>' + l.stl + '</td><td>' + (l.chg || 0) + '</td><td>' + l.to + '</td><td>' + C.showPct(on.fg, l.fgm, l.fga) + '</td><td>' +
-        C.showPct(on.tp, l.tpm, l.tpa) + '</td><td>' + C.showPct(on.ft, l.ftm, l.fta) + '</td><td>' + l.pf + '</td><td>' +
-        (row.pmGp ? C.fmtPm(row.pm) : '—') + '</td></tr>');
-    });
-    h.push('</tbody></table></div>');
-    return h.join('');
+  // ----- Stats -----
+  // Which finished games the stats cover. Scrimmages only count under their own filter.
+  var STAT_FILTERS = [['all', 'All games'], ['home', 'Home'], ['away', 'Away'], ['wins', 'Wins'], ['losses', 'Losses'],
+    ['last5', 'Last 5 games'], ['last10', 'Last 10 games'], ['scrim', 'Scrimmages']];
+  function statFilter() { return ui.statFilter || 'all'; }
+  function statFilterLabel() { var f = statFilter(), l = 'All games'; STAT_FILTERS.forEach(function (x) { if (x[0] === f) l = x[1]; }); return l; }
+  function statGames() {
+    var f = statFilter(), done = seasonGames().filter(function (g) { return g.status === 'final'; });
+    if (f === 'scrim') return done.filter(function (g) { return g.type === 'scrimmage'; });
+    var list = done.filter(function (g) { return g.type !== 'scrimmage'; });
+    function margin(g) { var c = C.computeGame(g); return c.score.us - c.score.them; }
+    if (f === 'home') return list.filter(function (g) { return g.homeAway !== 'away'; });
+    if (f === 'away') return list.filter(function (g) { return g.homeAway === 'away'; });
+    if (f === 'wins') return list.filter(function (g) { return margin(g) > 0; });
+    if (f === 'losses') return list.filter(function (g) { return margin(g) < 0; });
+    if (f === 'last5' || f === 'last10') return list.slice(0, f === 'last5' ? 5 : 10); // seasonGames is newest first
+    return list;
+  }
+  function statsCtx(forPrint) {
+    var season = find(meta.seasons, meta.currentSeasonId) || {}, rules = meta.settings.rules;
+    return {
+      teamName: meta.team.name, oppWord: 'Opponents', season: season.name || '', filter: statFilterLabel(),
+      players: seasonPlayers(), on: C.pctShown(meta.settings), link: !forPrint, sort: ui.statSort,
+      find: function (id) { return player(id) || findInGames(id); },
+      name: shortName, jersey: jerseyOf,
+      full: function (p) { return ((p.first || '') + ' ' + (p.last || '')).trim() || 'Player'; },
+      periodLabel: function (q) { return C.periodLabel(q, rules); }
+    };
+  }
+  // A player no longer on the roster, from a game's roster snapshot.
+  function findInGames(id) {
+    for (var i = 0; i < games.length; i++) { var p = find(games[i].roster || [], id); if (p) return p; }
+    return null;
+  }
+  function statsData() { return window.SBStatsCalc.compute(statGames(), seasonPlayers()); }
+
+  var STAT_TABS = [['team', 'Team'], ['players', 'Players'], ['leaders', 'Leaders'], ['lineups', 'Lineups'], ['games', 'Game log']];
+  function filterSelect() {
+    return '<label class="stat-filter"><span>Games</span><select data-statfilter="1">' + STAT_FILTERS.map(function (f) {
+      return '<option value="' + f[0] + '"' + (statFilter() === f[0] ? ' selected' : '') + '>' + f[1] + '</option>';
+    }).join('') + '</select></label>';
   }
 
-  // ----- Player game log -----
-  screens.player = function () {
-    var p = player(route.id), season = find(meta.seasons, meta.currentSeasonId);
-    if (!p) return pageHead('Player not found', backBtn('#home', 'Home'), '');
-    var finals = seasonFinals();
-    var s = C.computeSeason(finals, seasonPlayers()), r = s.players[p.id] || { gp: 0, line: C.emptyLine(), pm: 0, pmGp: 0, games: [] };
-    var on = C.pctShown(meta.settings), t = r.line, gp = r.gp;
-    var h = [pageHead((p.num ? '#' + p.num + ' ' : '') + ((p.first || '') + ' ' + (p.last || '')).trim() + ' · ' + season.name, backBtn('#home', 'Home'), '')];
-    h.push('<div class="pg-bd">');
-    h.push('<div class="record">' + [
-      [gp, 'Games'], [avg(t.pts, gp), 'Pts / game'], [avg(t.oreb + t.dreb, gp), 'Reb / game'], [avg(t.ast, gp), 'Ast / game'],
-      [avg(t.stl, gp), 'Stl / game'], [t.chg || 0, 'Charges'], [r.pmGp ? C.fmtPm(r.pm) : '—', 'Plus/minus']
-    ].map(function (x) { return '<div><b class="num">' + x[0] + '</b><span>' + x[1] + '</span></div>'; }).join('') + '</div>');
-    h.push('<h2>Game log</h2>');
-    if (!r.games.length) { h.push('<p class="note">No finished games yet this season.</p></div>'); return h.join(''); }
-    function ma(m, a) { return m + '-' + a; }
-    function cells(l, pm) {
-      return '<td class="b">' + l.pts + '</td><td>' + (l.oreb + l.dreb) + '</td><td>' + l.ast + '</td><td>' + l.stl + '</td><td>' + l.blk +
-        '</td><td>' + (l.chg || 0) + '</td><td>' + l.to + '</td><td>' + l.pf + '</td><td>' + ma(l.fgm, l.fga) + '</td><td>' + ma(l.tpm, l.tpa) +
-        '</td><td>' + ma(l.ftm, l.fta) + '</td><td>' + pm + '</td>';
+  screens.stats = function () {
+    var tab = route.id || 'team', season = find(meta.seasons, meta.currentSeasonId) || {}, SS = window.SBStats;
+    ui.lastStats = tab;
+    var h = [pageHead('Stats · ' + (season.name || ''), backBtn('#home', 'Home'), '<button class="btn sm" data-a="printStats">Print</button>')];
+    h.push('<div class="stat-bar no-print"><div class="seg stat-tabs">' + STAT_TABS.map(function (t) {
+      return '<button data-a="go" data-x="#stats/' + t[0] + '" class="' + (tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>';
+    }).join('') + '</div>' + filterSelect() + '</div>');
+    if (tab === 'players') {
+      var v = ui.statView || 'pergame';
+      h.push('<div class="stat-bar sub no-print"><div class="seg stat-views">' + Object.keys(SS.VIEWS).map(function (k) {
+        return '<button data-a="statView" data-x="' + k + '" class="' + (v === k ? 'on' : '') + '">' + SS.VIEWS[k] + '</button>';
+      }).join('') + '</div><span class="stat-hint">Tap a column to sort · tap a player for their page</span></div>');
     }
-    h.push('<div class="tw"><table class="st"><thead><tr><th class="l">Date</th><th class="l">Opponent</th><th class="l">Result</th>' +
-      '<th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>CHG</th><th>TO</th><th>PF</th><th>FG</th><th>3P</th><th>FT</th><th>+/−</th></tr></thead><tbody>');
-    r.games.forEach(function (x) {
-      var res = x.us > x.them ? 'W' : x.us < x.them ? 'L' : 'T';
-      h.push('<tr class="tap" data-a="go" data-x="#report/' + x.id + '"><td class="l">' + esc(R.fmtDate(x.date)) + '</td><td class="l nm">' +
-        (x.homeAway === 'away' ? '@ ' : 'vs ') + esc(x.opponent) + '</td><td class="l b">' + res + ' ' + x.us + '–' + x.them + '</td>' +
-        cells(x.line, C.fmtPm(x.pm)) + '</tr>');
-    });
-    h.push('<tr class="tot"><td class="l" colspan="3">Totals</td>' + cells(t, r.pmGp ? C.fmtPm(r.pm) : '—') + '</tr>');
-    h.push('<tr class="tot"><td class="l" colspan="3">Per game</td><td class="b">' + avg(t.pts, gp) + '</td><td>' + avg(t.oreb + t.dreb, gp) +
-      '</td><td>' + avg(t.ast, gp) + '</td><td>' + avg(t.stl, gp) + '</td><td>' + avg(t.blk, gp) + '</td><td>' + avg(t.chg || 0, gp) +
-      '</td><td>' + avg(t.to, gp) + '</td><td>' + avg(t.pf, gp) + '</td><td>' + C.showPct(on.fg, t.fgm, t.fga) + (on.fg && t.fga ? '%' : '') +
-      '</td><td>' + C.showPct(on.tp, t.tpm, t.tpa) + (on.tp && t.tpa ? '%' : '') + '</td><td>' + C.showPct(on.ft, t.ftm, t.fta) + (on.ft && t.fta ? '%' : '') +
-      '</td><td>' + (r.pmGp ? (r.pm > 0 ? '+' : '') + avg(r.pm, r.pmGp) : '—') + '</td></tr>');
-    h.push('</tbody></table></div><p class="note">Tap a game to open its report. Plus/minus counts only games that recorded substitutions.</p>');
-    h.push('</div>');
+    var S = statsData(), ctx = statsCtx(false), body;
+    if (tab === 'players') body = SS.players(S, ctx, ui.statView || 'pergame');
+    else body = (SS[tab] || SS.team)(S, ctx);
+    h.push('<div class="sx-wrap">' + body + '</div>');
+    if (ui.drawer === 'print') h.push(printPicker(null));
     return h.join('');
   };
+
+  // ----- Player page -----
+  screens.player = function () {
+    var p = player(route.id) || findInGames(route.id);
+    if (!p) return pageHead('Player not found', backBtn('#stats/players', 'Stats'), '');
+    var ps = seasonPlayers(), i = -1;
+    ps.forEach(function (x, k) { if (x.id === p.id) i = k; });
+    var prev = i > 0 ? ps[i - 1] : null, next = i >= 0 && i < ps.length - 1 ? ps[i + 1] : null;
+    var nav = (prev ? '<button class="btn sm" data-a="go" data-x="#player/' + prev.id + '">‹ ' + esc(jerseyOf(prev)) + '</button>' : '') +
+      (next ? '<button class="btn sm" data-a="go" data-x="#player/' + next.id + '">' + esc(jerseyOf(next)) + ' ›</button>' : '') +
+      '<button class="btn sm" data-a="printStats">Print</button>';
+    var h = [pageHead(pTag(p), backBtn('#stats/' + (ui.lastStats || 'players'), 'Stats'), nav)];
+    h.push('<div class="stat-bar no-print"><span class="stat-hint">Tap a game to open its report</span>' + filterSelect() + '</div>');
+    h.push('<div class="sx-wrap">' + window.SBStats.player(statsData(), statsCtx(false), p.id) + '</div>');
+    if (ui.drawer === 'print') h.push(printPicker(p.id));
+    return h.join('');
+  };
+
+  // Print: pick any of the stat sheets; each prints on its own page (wide tables in landscape).
+  function printPicker(pid) {
+    var sel = ui.printSel || {}, opts = [['team', 'Team summary'], ['players:pergame', 'Players · per game'], ['players:totals', 'Players · totals'],
+      ['players:shooting', 'Players · shooting'], ['players:advanced', 'Players · advanced'], ['leaders', 'Leaders and highs'], ['lineups', 'Lineups'],
+      ['games', 'Game log']];
+    if (pid) opts.unshift(['player:' + pid, 'This player’s page']);
+    opts.push(['allplayers', 'Every player’s page (one each)']);
+    var h = '<p class="note" style="margin-top:0">Covering <b>' + esc(statFilterLabel()) + '</b>. Each sheet prints on its own page.</p><div class="print-pick">' +
+      opts.map(function (o) {
+        return '<button class="bp' + (sel[o[0]] ? ' on' : '') + '" data-a="printToggle" data-x="' + o[0] + '"><span class="num">' + (sel[o[0]] ? '✓' : '') + '</span><span>' + o[1] + '</span></button>';
+      }).join('') + '</div>';
+    var n = Object.keys(sel).filter(function (k) { return sel[k]; }).length;
+    return sheet('Print stat sheets', h, '<button class="btn ghost" data-a="closeDrawer">Cancel</button><button class="btn pri" data-a="printGo"' + (n ? '' : ' disabled') + '>Print ' +
+      (n ? n + ' sheet' + (n === 1 ? '' : 's') : '') + '</button>');
+  }
 
   // ----- Schedule -----
   function seasonSchedule() {
@@ -1981,7 +2024,44 @@
 
   // Report
   actions.repNames = function (x) { ui.reportNames = x; render(); };
-  actions.print = function () { window.print(); };
+  actions.print = function () { document.documentElement.classList.remove('print-stats'); window.print(); };
+
+  // ----- Stats actions -----
+  actions.statView = function (x) { ui.statView = x; render(); };
+  // Tap a column: sort by it (highest first); tap again to flip; a third tap goes back to jersey order.
+  actions.statSort = function (x) {
+    var s = ui.statSort;
+    if (!s || s.k !== x) ui.statSort = { k: x, dir: 'desc' };
+    else if (s.dir === 'desc') ui.statSort = { k: x, dir: 'asc' };
+    else ui.statSort = null;
+    render();
+  };
+  actions.printStats = function () {
+    var sel = {};
+    if (route.name === 'player') sel['player:' + route.id] = true;
+    else { var t = route.id || 'team'; sel[t === 'players' ? 'players:' + (ui.statView || 'pergame') : t] = true; }
+    ui.printSel = sel; ui.drawer = 'print';
+    render();
+  };
+  actions.printToggle = function (x) { ui.printSel = ui.printSel || {}; ui.printSel[x] = !ui.printSel[x]; render(); };
+  actions.printGo = function () {
+    var sel = ui.printSel || {}, S = statsData(), ctx = statsCtx(true), SS = window.SBStats, out = [];
+    var order = ['team', 'players:pergame', 'players:totals', 'players:shooting', 'players:advanced', 'leaders', 'lineups', 'games'];
+    Object.keys(sel).forEach(function (k) { if (sel[k] && /^player:/.test(k)) out.push(SS.player(S, ctx, k.slice(7))); });
+    order.forEach(function (k) {
+      if (!sel[k]) return;
+      out.push(k.indexOf('players:') === 0 ? SS.players(S, ctx, k.slice(8)) : SS[k](S, ctx));
+    });
+    if (sel.allplayers) seasonPlayers().forEach(function (p) { if (S.players[p.id] && S.players[p.id].gp) out.push(SS.player(S, ctx, p.id)); });
+    var root = document.getElementById('print-root');
+    if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
+    root.innerHTML = out.join('');
+    document.documentElement.classList.add('print-stats');
+    ui.drawer = null;
+    render();
+    setTimeout(function () { window.print(); }, 60);
+  };
+
   function reportFileName(g) { return slug(meta.team.short || meta.team.name) + '-vs-' + slug(g.opponent) + '-' + g.date + '.html'; }
 
   actions.dlReport = function () {
@@ -2070,6 +2150,8 @@
     if ((k = el.getAttribute('data-edit'))) {
       var p = player(el.getAttribute('data-x'));
       if (p) { p[k] = el.value.trim(); saveMeta(); }
+    } else if (el.getAttribute('data-statfilter')) {
+      ui.statFilter = el.value; render();
     } else if ((k = el.getAttribute('data-draft'))) {
       draft[k] = el.value;
     } else if ((k = el.getAttribute('data-team'))) {

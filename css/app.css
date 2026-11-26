@@ -535,3 +535,184 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
 /* Subs sheet: a player who will come off when the lineup is saved. */
 .bp.leaving { border-style: dashed; border-color: var(--warn); background: var(--warn-soft); color: var(--ink2); }
 .bp span small b { font-weight: 700; }
+
+/* ---------- Stats (js/stats.js) ----------
+   Stat sheets are paper: the same markup is shown on screen and printed, in the report's ledger style. */
+.stat-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; max-width: 76rem; margin: 0 auto; padding: 0.9rem 1.25rem 0; }
+.stat-bar.sub { padding-top: 0.6rem; }
+.stat-bar .seg { height: 2.7rem; }
+.stat-tabs { flex: 1 1 34rem; }
+.stat-views { flex: 0 1 30rem; }
+.stat-views button, .stat-tabs button { padding: 0 0.6rem; }
+.stat-hint { color: var(--ink2); font-size: 0.8rem; flex: 1; }
+.stat-filter { display: flex; align-items: center; gap: 0.5rem; margin-left: auto; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ledger); }
+.stat-filter select { height: 2.7rem; padding: 0 0.6rem; border: 2px solid var(--ink); border-radius: 0.375rem; background: var(--card); font-size: 0.95rem; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.stat-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.6rem; }
+.stat-links button { background: var(--card); border: 2px solid var(--rule); border-radius: 0.5rem; padding: 0.7rem 0.8rem; min-height: 4.6rem; }
+.stat-links button:active { border-color: var(--accent); background: var(--accent-soft); }
+.stat-links b { display: block; font-size: 1.05rem; }
+.stat-links small { display: block; color: var(--ink2); font-size: 0.76rem; margin-top: 0.2rem; }
+.print-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.print-pick .bp { height: 3.2rem; }
+.print-pick .bp .num { font-size: 1.2rem; width: 1.6rem; }
+.print-pick .bp span { font-size: 0.95rem; }
+
+.sx-wrap { max-width: 76rem; margin: 0 auto; padding: 0.9rem 1.25rem 3rem; }
+.sx { background: var(--card); border: 2px solid var(--rule); border-radius: 0.5rem; padding: 1.3rem 1.5rem 1.4rem; overflow-x: auto;
+  font-size: 0.875rem; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.sx-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; border-bottom: 3px solid var(--ink); padding-bottom: 0.55rem; }
+.sx-eye { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ledger); font-weight: 700; }
+.sx h1 { margin: 0.15rem 0 0; font-family: var(--f-num); font-size: 2rem; line-height: 1; letter-spacing: -0.01em; }
+.sx-meta { color: var(--ink2); font-size: 0.8rem; white-space: nowrap; }
+.sx-meta b { font-family: var(--f-num); font-size: 1.3rem; color: var(--ink); }
+.sx h2 { font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ledger); margin: 1.35rem 0 0.45rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--rule); font-weight: 700; }
+.sx h2 small { letter-spacing: 0.04em; text-transform: none; color: var(--ink2); font-weight: 400; font-size: 0.75rem; margin-left: 0.3rem; }
+.sx-none { color: var(--ink2); margin: 1rem 0 0.2rem; }
+.sx-foot { color: var(--ink2); font-size: 0.74rem; line-height: 1.4; margin: 0.9rem 0 0; }
+.sx .pos { color: var(--ledger); }
+.sx .neg { color: var(--out); }
+.sx small { color: var(--ink2); font-weight: 400; }
+
+/* Headline numbers */
+.sx-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(6.3rem, 1fr)); margin-top: 0.9rem; border-top: 1px solid var(--rule); border-left: 1px solid var(--rule); }
+.sx-kpis > div { padding: 0.55rem 0.7rem 0.5rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); min-width: 0; }
+.sx-kpis b { display: block; font-family: var(--f-num); font-size: 1.65rem; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.sx-kpis .big b { font-size: 2.1rem; }
+.sx-kpis .pos b { color: var(--ledger); }
+.sx-kpis .neg b { color: var(--out); }
+.sx-kpis span { display: block; font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink2); font-weight: 700; margin-top: 0.15rem; }
+.sx-kpis em { display: block; font-style: normal; font-size: 0.7rem; color: var(--accent); font-weight: 700; margin-top: 0.1rem; }
+
+.sx-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 2.2rem; }
+@media (max-width: 52rem) { .sx-cols { grid-template-columns: 1fr; } }
+
+.sx-dl { margin: 0; }
+.sx-dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; padding: 0.3rem 0; border-bottom: 1px solid var(--rule); }
+.sx-dl dt { color: var(--ink); min-width: 0; }
+.sx-dl dt small { display: block; font-size: 0.7rem; }
+.sx-dl dd { margin: 0; font-family: var(--f-num); font-weight: 700; font-size: 1rem; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sx-dl dd small { font-family: var(--f-body); font-size: 0.72rem; margin-left: 0.3rem; }
+
+/* Bars (plain divs, so they print) */
+.sx-bar { display: inline-block; position: relative; height: 0.6rem; background: #E2EAE8; border-radius: 0.3rem; overflow: hidden; vertical-align: middle; }
+.sx-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ledger); border-radius: 0.3rem; }
+.sx-shot { display: grid; grid-template-columns: 2.6rem 1fr 6.5rem; align-items: center; gap: 0.6rem; padding: 0.35rem 0; border-bottom: 1px solid var(--rule); }
+.sx-shot .lab { font-family: var(--f-num); font-weight: 700; color: var(--ledger); font-size: 0.85rem; }
+.sx-shot .sx-bar { width: 100%; height: 0.75rem; }
+.sx-shot .sx-bar i { background: var(--accent); }
+.sx-shot .v { text-align: right; font-family: var(--f-num); white-space: nowrap; }
+.sx-shot .v b { font-size: 1.05rem; }
+.sx-shot .v small { margin-left: 0.35rem; font-family: var(--f-num); }
+.sx-mix { display: flex; height: 1.1rem; border-radius: 0.3rem; overflow: hidden; background: #E2EAE8; margin-top: 0.4rem; }
+.sx-mix i { display: block; height: 100%; }
+.sx-mix .m2, .sx-key .m2 { background: var(--accent); }
+.sx-mix .m3, .sx-key .m3 { background: var(--ledger); }
+.sx-mix .m1, .sx-key .m1 { background: var(--warn); }
+.sx-mix .ma, .sx-key .ma { background: #8FA7A2; }
+.sx-key { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.45rem; font-size: 0.78rem; }
+.sx-key i { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 0.15rem; margin-right: 0.35rem; vertical-align: -0.05rem; }
+
+/* Scoring by period: paired columns, ours in blue, theirs in grey */
+.sx-qs { display: flex; gap: 1.4rem; align-items: flex-end; flex-wrap: wrap; padding-top: 1.2rem; }
+.sx-q { display: flex; flex-direction: column; align-items: center; width: 5.2rem; }
+.sx-q .bars { display: flex; align-items: flex-end; gap: 0.3rem; height: 7rem; width: 100%; justify-content: center; border-bottom: 2px solid var(--ink); }
+.sx-q .bars i { position: relative; width: 1.9rem; display: block; min-height: 2px; }
+.sx-q .bars i.us { background: var(--accent); }
+.sx-q .bars i.th { background: #B7C6C2; }
+.sx-q .bars b { position: absolute; left: -0.5rem; right: -0.5rem; bottom: 100%; text-align: center; font-family: var(--f-num); font-size: 0.82rem; padding-bottom: 0.1rem; }
+.sx-q .lab { font-family: var(--f-num); font-weight: 700; margin-top: 0.3rem; }
+.sx-q .m { font-family: var(--f-num); font-weight: 700; font-size: 0.85rem; }
+.sx-q small { font-size: 0.66rem; }
+.sx-qkey { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.78rem; padding-bottom: 2.4rem; }
+.sx-qkey i { display: inline-block; width: 0.75rem; height: 0.75rem; margin-right: 0.4rem; vertical-align: -0.08rem; }
+.sx-qkey i.us { background: var(--accent); }
+.sx-qkey i.th { background: #B7C6C2; }
+
+/* Tables */
+.sx-t { border-collapse: collapse; width: 100%; font-family: var(--f-num); font-variant-numeric: tabular-nums; font-size: 0.92rem; }
+.sx-t th { font-size: 0.64rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ledger); font-weight: 700; text-align: right; padding: 0.3rem 0.4rem; border-bottom: 2px solid var(--ledger); white-space: nowrap; vertical-align: bottom; }
+.sx-t th button { font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; padding: 0.35rem 0; min-width: 1.6rem; text-align: right; }
+.sx-t td { text-align: right; padding: 0.34rem 0.4rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.sx-t .l { text-align: left; }
+.sx-t th.l button { text-align: left; }
+.sx-t td.nm { font-family: var(--f-body); font-size: 0.86rem; }
+.sx-t td.b, .sx-t th.b { font-weight: 700; }
+.sx-t td.dim { color: var(--ink2); white-space: normal; font-family: var(--f-body); font-size: 0.78rem; }
+.sx-t tr.dim td { color: #8A9A98; }
+.sx-t tr.tot td { border-top: 2px solid var(--ink); border-bottom: 0; font-weight: 700; }
+.sx-t tr.tap { cursor: pointer; }
+.sx-t tr.tap:active td { background: var(--accent-soft); }
+.sx-players td:nth-child(n+2), .sx-players th:nth-child(n+2) { min-width: 2.6rem; }
+.sx-jr { display: inline-block; min-width: 1.9rem; font-family: var(--f-num); font-weight: 700; color: var(--ink2); }
+.sx-unit { display: inline-flex; gap: 0.2rem; }
+.sx-unit span { min-width: 1.75rem; height: 1.55rem; line-height: 1.4rem; text-align: center; border: 1.5px solid var(--ink); border-radius: 0.2rem; font-weight: 700; font-size: 0.82rem; padding: 0 0.15rem; }
+.sx-unames { display: block; font-size: 0.68rem; margin-top: 0.15rem; font-family: var(--f-body); white-space: normal; }
+
+/* Leaders */
+.sx-ldrs { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.7rem; margin-top: 1rem; }
+.sx-ldr { border: 1px solid var(--rule); border-radius: 0.375rem; padding: 0.5rem 0.7rem 0.3rem; break-inside: avoid; }
+.sx-ldr h3 { margin: 0 0 0.25rem; font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ledger); }
+.sx-ldr h3 small { letter-spacing: 0.03em; text-transform: none; }
+.sx-ldr ol { list-style: none; margin: 0; padding: 0; }
+.sx-ldr li { display: flex; align-items: center; min-height: 1.9rem; font-size: 0.88rem; border-top: 1px solid var(--rule); }
+.sx-ldr li:first-child { border-top: 0; font-weight: 700; }
+.sx-ldr li:first-child b { color: var(--accent); }
+.sx-ldr li b { margin-left: auto; font-family: var(--f-num); font-size: 1.05rem; }
+.sx-ldr li.tap { cursor: pointer; }
+
+/* Player page. The jersey sits in a running-score cell with the scorebook's slash through it. */
+.sx-hero { display: flex; align-items: center; gap: 1.3rem; padding-bottom: 0.9rem; border-bottom: 3px solid var(--ink); }
+.sx-cell { position: relative; flex: none; width: 6.4rem; height: 6.4rem; border: 3px solid var(--ink); display: flex; align-items: center; justify-content: center; background: var(--card); }
+.sx-cell span { font-family: var(--f-num); font-weight: 700; font-size: 3.4rem; line-height: 1; position: relative; z-index: 1; }
+.sx-cell i { position: absolute; left: 12%; right: 12%; top: 50%; height: 0.35rem; margin-top: -0.175rem; background: var(--accent); opacity: 0.85; transform: rotate(-38deg); }
+.sx-hero .who { flex: 1; min-width: 0; }
+.sx-hero h1 { font-size: 2.3rem; }
+.sx-hero .sub { margin: 0.35rem 0 0; color: var(--ink2); }
+.sx-hero .line { display: flex; gap: 1.6rem; }
+.sx-hero .line div { text-align: center; }
+.sx-hero .line b { display: block; font-family: var(--f-num); font-size: 2.4rem; line-height: 1; }
+.sx-hero .line span { font-size: 0.66rem; letter-spacing: 0.14em; color: var(--ledger); font-weight: 700; }
+.sx-spark { position: relative; display: flex; align-items: flex-end; gap: 0.35rem; height: 8.5rem; padding-top: 1.2rem; border-bottom: 2px solid var(--ink); margin-bottom: 1.6rem; }
+.sx-spark > div { flex: 1 1 0; max-width: 4.5rem; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; position: relative; }
+.sx-spark i { display: block; background: var(--accent); position: relative; min-height: 2px; }
+.sx-spark i b { position: absolute; left: 0; right: 0; bottom: 100%; text-align: center; font-family: var(--f-num); font-size: 0.8rem; font-style: normal; }
+.sx-spark > div > span { position: absolute; top: 100%; left: -0.3rem; right: -0.3rem; text-align: center; font-size: 0.6rem; color: var(--ink2); padding-top: 0.2rem; white-space: nowrap; overflow: hidden; }
+.sx-spark .avg { position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed var(--warn); z-index: 1; pointer-events: none; }
+.sx-spark > div.tap { cursor: pointer; }
+.sx-perq { display: flex; border-left: 1px solid var(--rule); }
+.sx-perq div { flex: 1; text-align: center; padding: 0.5rem 0.2rem; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.sx-perq b { display: block; font-family: var(--f-num); font-size: 1.5rem; }
+.sx-perq span { font-size: 0.66rem; letter-spacing: 0.1em; color: var(--ledger); font-weight: 700; }
+.sx-split td:first-child { font-family: var(--f-body); font-size: 0.82rem; }
+
+/* Printing stat sheets: only the chosen sheets, one per page; wide tables go landscape. */
+#print-root { display: none; }
+@page { margin: 0.45in; }
+@page wide { size: letter landscape; margin: 0.4in; }
+@media print {
+  html.print-stats body > *:not(#print-root) { display: none !important; }
+  html.print-stats #print-root { display: block; }
+  html, body { background: #fff !important; }
+  .stat-bar { display: none !important; }
+  .sx-wrap { padding: 0; max-width: none; }
+  .sx { border: 0; border-radius: 0; padding: 0; overflow: visible; font-size: 9pt; break-after: page; page-break-after: always; }
+  .sx:last-child { break-after: auto; page-break-after: auto; }
+  .sx.wide { page: wide; }
+  .sx-t { font-size: 8.5pt; }
+  .sx-t td, .sx-t th { padding: 0.2rem 0.3rem; }
+  .sx-cols > div, .sx-ldr, .sx-qs, .sx-spark, .sx-kpis { break-inside: avoid; }
+  .sx h2 { break-after: avoid; }
+  .sx-cols { grid-template-columns: 1fr 1fr; }
+  .sx-kpis { grid-template-columns: repeat(auto-fit, minmax(4.4rem, 1fr)); }
+  .sx-kpis b { font-size: 1.35rem; }
+  .sx-kpis .big b { font-size: 1.6rem; }
+  .sx-kpis span { font-size: 0.55rem; letter-spacing: 0.08em; }
+  .sx-ldrs { grid-template-columns: repeat(4, 1fr); gap: 0.45rem; }
+  .sx-ldr li { min-height: 1.35rem; font-size: 8.5pt; }
+  .sx-ldr li b { font-size: 9pt; }
+  .sx-unames { font-size: 7pt; }
+  .sx-hero .sx-cell { width: 5rem; height: 5rem; }
+  .sx-hero .sx-cell span { font-size: 2.7rem; }
+}
+.sx-dl.two { column-count: 2; column-gap: 2.2rem; }
+.sx-dl.two > div { break-inside: avoid; -webkit-column-break-inside: avoid; }

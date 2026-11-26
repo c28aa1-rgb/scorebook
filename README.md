@@ -67,9 +67,33 @@ runs, timeouts) and a running-score grid like the paper book.
 **Plus/minus** (+/−) is our points minus theirs while each player was on court. It's counted for games
 started after subs were recorded (Nov 2026 onward); older games show —.
 
-**Season** (home screen): leaders in each category (top 3; percentages need at least 1 attempt per game
-and 5 in all), and the season stats table. Tap any player for their game-by-game log with totals and
-per-game averages; tap a game there to open its report.
+**Stats** (home screen → Stats, or the five links under Season leaders). The **Games** menu limits
+everything to all games, home, away, wins, losses, the last 5 or 10, or scrimmages (which are otherwise
+left out). Tabs:
+
+- **Team:** record (home/away, streak, last 5), points for and against, average scoring by quarter,
+  shooting (2s, 3s, FTs, effective FG%, true shooting %), where the points come from, possessions and
+  points per 100, assists and turnovers, game situations (close games, leading/trailing at half, scored
+  first), fouls and free throws, results by opponent, and single-game team highs.
+- **Players:** per game, totals, shooting and advanced views; tap a column to sort. Advanced has game score,
+  share of team points, usage, assist-to-turnover, double-doubles, quarters played, plus/minus and on/off
+  court net points per 100 possessions.
+- **Leaders:** top 5 in 18 categories and single-game highs.
+- **Lineups:** every five-player unit with possessions, points for/against and net per 100, and the record
+  of each starting lineup (from games that recorded subs).
+- **Game log:** each game's team numbers and top scorer.
+
+Tap a player anywhere for their page: season line, rank on the team in each stat, shooting bars, points
+mix, impact numbers, points by game and by quarter, season highs, splits (home/away, wins/losses, started/
+bench, last 3), their best lineups and the full game log. Tap a game to open its report.
+
+There's no game clock, so nothing is per minute. Possessions are estimated from our plays
+(FGA − OREB + TO + 0.44 × FTA); the opponent's misses aren't recorded, so their possessions are taken to
+equal ours.
+
+**Print** (top right on Stats and player pages) opens a list of sheets: team, the four player views,
+leaders, lineups, game log, this player's page or every player's page. Each prints on its own page,
+with wide tables in landscape. Best from a laptop or with Save as PDF.
 
 **Back up** from Settings after each game (saves a .json file to Downloads). Restore it from the same page.
 
@@ -197,6 +221,7 @@ and the same publish key.
 node tools/serve.js        # http://localhost:8080
 node tests/core.test.js    # stat and rules tests
 node tests/schedule.test.js  # schedule import tests
+node tests/stats.test.js   # season stats tests
 # icons: icons/icon.svg is the source. To regenerate the PNGs, open
 # http://localhost:8080/tools/render-icons.html and save each image into icons/.
 ```

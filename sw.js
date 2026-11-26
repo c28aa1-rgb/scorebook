@@ -1,7 +1,7 @@
 // Offline cache for the app shell. Bump VERSION whenever any cached file changes.
-var VERSION = 'scorebook-v29';
+var VERSION = 'scorebook-v31';
 var FILES = [
-  './', './index.html', './css/app.css', './js/core.js', './js/db.js', './js/report.js', './js/sample.js', './js/schedule.js',
+  './', './index.html', './css/app.css', './js/core.js', './js/db.js', './js/report.js', './js/stats.js', './js/sample.js', './js/schedule.js',
   './js/firebase-config.js', './js/cloud.js', './js/app.js',
   './vendor/firebase/firebase-app-compat.js', './vendor/firebase/firebase-auth-compat.js', './vendor/firebase/firebase-firestore-compat.js',
   './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
