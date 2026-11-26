@@ -159,6 +159,11 @@ Database → `access` and add or delete their document. `firestore.rules` only l
 document there (and a verified email) read or write `books/`, and nobody can change `access` from the app.
 Deploy rule changes with `firebase deploy --only firestore:rules`.
 
+**Offline:** once an account has signed in online on a tablet, the app opens there with no internet:
+the sign-in and the "allowed" answer are remembered, and it starts straight from the tablet's copy
+without waiting on the network. Everything scored offline uploads when the tablet is back online, and
+the app then catches up with changes from other tablets. The very first sign-in on a tablet needs internet.
+
 The Firebase SDK is bundled in `vendor/firebase` (so sign-in works offline once cached) and is only loaded
 when a config is set; with `config: null` the app runs on the tablet alone, as before.
 

@@ -15,24 +15,29 @@
   var CFG = root.SB_FIREBASE || {};
   var SDK = ['vendor/firebase/firebase-app-compat.js', 'vendor/firebase/firebase-auth-compat.js', 'vendor/firebase/firebase-firestore-compat.js'];
   var fb = null, auth = null, db = null, book = null;
-  var pending = 0, statusFns = [], timers = {}, unsub = [];
+  var pending = 0, statusFns = [], timers = {}, unsub = [], redirectError = null;
 
   function configured() { return !!(CFG.config && CFG.config.projectId); }
 
   // Is this account on the access list (access/{email} in the database)? cb(true | false | null);
   // null = couldn't check (offline before this account was ever checked). A yes is remembered on
   // the tablet so the app still opens offline; the server rules enforce access either way.
+  // Offline, the remembered answer is used straight away rather than waiting on the network; online,
+  // a remembered yes also opens the app after 2.5 s if the server is slow (the check still updates
+  // the memo for next time, and the server rules apply regardless).
   function checkAccess(user, cb) {
-    var email = ((user && user.email) || '').toLowerCase(), memo = 'sb-access:' + email;
+    var email = ((user && user.email) || '').toLowerCase(), memo = 'sb-access:' + email, known = false, done = false;
     if (!email) return cb(false);
+    try { known = localStorage.getItem(memo) === '1'; } catch (x) {}
+    function finish(v) { if (!done) { done = true; cb(v); } }
+    if (!navigator.onLine) return finish(known ? true : null);
+    if (known) setTimeout(function () { finish(true); }, 2500);
     db.collection('access').doc(email).get().then(function (d) {
       try { if (d.exists) localStorage.setItem(memo, '1'); else localStorage.removeItem(memo); } catch (e) {}
-      cb(d.exists);
+      finish(d.exists);
     }, function (e) {
-      if (e && e.code === 'permission-denied') return cb(false);
-      var known = false;
-      try { known = localStorage.getItem(memo) === '1'; } catch (x) {}
-      cb(known ? true : null);
+      if (e && e.code === 'permission-denied') return finish(false);
+      finish(known ? true : null);
     });
   }
 
@@ -59,8 +64,11 @@
     db.enablePersistence({ synchronizeTabs: true })['catch'](function () {})
       .then(function () {
         book = db.collection('books').doc(CFG.book || 'dalton');
-        // A redirect sign-in (used when a popup isn't possible) finishes here.
-        auth.getRedirectResult()['catch'](function (e) { cb(e); });
+        // A redirect sign-in (used when a popup isn't possible) finishes here. Its errors are only
+        // worth showing on the sign-in screen; offline this check can fail and must not block the app.
+        auth.getRedirectResult()['catch'](function (e) {
+          if (e && e.code !== 'auth/network-request-failed') redirectError = e;
+        });
         cb(null);
       });
   }
@@ -78,6 +86,8 @@
   }
 
   function signOut() { stopListening(); return auth.signOut(); }
+  // Error from a redirect sign-in that came back to the app, to show on the sign-in screen (once).
+  function takeRedirectError() { var e = redirectError; redirectError = null; return e; }
   function currentUser() { return auth && auth.currentUser; }
 
   // ---------- sync status: 'offline' | 'syncing' | 'synced' ----------
@@ -117,9 +127,11 @@
     track(book.collection('games').doc(id)['delete']());
   }
 
-  // Everything in the cloud: cb(err, { meta, games }).
+  // Everything in the cloud, from the server only (never the offline copy, which may be incomplete
+  // and would make games look deleted): cb(err, { meta, games }). Fails when offline.
   function pull(cb) {
-    Promise.all([book.get(), book.collection('games').get()]).then(function (r) {
+    var server = { source: 'server' };
+    Promise.all([book.get(server), book.collection('games').get(server)]).then(function (r) {
       var meta = r[0].exists ? r[0].data().meta : null;
       cb(null, { meta: meta, games: r[1].docs.map(function (d) { return d.data().game; }) });
     }, function (e) { cb(e); });
@@ -154,6 +166,7 @@
 
   root.SBCloud = {
     configured: configured, checkAccess: checkAccess, load: load, onAuth: onAuth, signIn: signIn, signOut: signOut,
+    takeRedirectError: takeRedirectError,
     currentUser: currentUser, status: status, onStatus: onStatus, pushMeta: pushMeta, pushGame: pushGame,
     removeGame: removeGame, pull: pull, listen: listen, replaceAll: replaceAll
   };

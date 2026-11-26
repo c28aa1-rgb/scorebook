@@ -289,6 +289,10 @@
 
   // Full-screen sign-in / no-access screen; nothing else is shown until an allowed account signs in.
   function showGate(kind, detail, msg) {
+    if (kind === 'signin' && !msg) {
+      var re = Cloud.takeRedirectError();
+      if (re) msg = 'Sign-in didn’t work (' + (re.code || re.message) + ').';
+    }
     gate = { kind: kind, detail: detail || '', msg: msg || '' };
     hideSplash();
     var body;
@@ -306,13 +310,41 @@
     app.innerHTML = '<div class="gate"><img src="icons/icon.svg" alt="" width="96" height="96"><h1>' + esc(meta.team.name) + ' Scorebook</h1>' + body + '</div>';
   }
 
-  // First sync after sign-in: merge the cloud copy with this tablet's, then follow live changes.
-  // Per game and for the rest (meta), the copy changed most recently wins. A game that was synced
-  // before but is gone from the cloud was deleted on another tablet; one never synced is new here.
+  // After sign-in: follow live changes and merge the cloud copy with this tablet's. The app opens
+  // at once from the tablet's own copy when offline (or if the server takes over 4 s); the merge
+  // then runs in the background, and again whenever the connection comes back.
   function startSync(cb) {
+    syncing = true;
+    listenCloud();
+    var opened = false;
+    function open() { if (!opened) { opened = true; cb(); } }
+    if (!navigator.onLine) { catchUpLater(); open(); return; }
+    setTimeout(open, 4000);
+    mergeWithCloud(function (ok) {
+      if (!ok) catchUpLater();
+      if (opened) refresh(); else open();
+    });
+  }
+
+  // Retry the merge when the tablet is back online (or in 30 s if it seems online but the server
+  // couldn't be reached).
+  var catchUpPending = false;
+  function catchUpLater() {
+    if (catchUpPending) return;
+    catchUpPending = true;
+    function retry() {
+      window.removeEventListener('online', retry);
+      catchUpPending = false;
+      mergeWithCloud(function (ok) { if (ok) refresh(); else catchUpLater(); });
+    }
+    if (navigator.onLine) setTimeout(retry, 30000); else window.addEventListener('online', retry);
+  }
+
+  // Per game and for the rest (meta), the copy changed most recently wins. A game that was synced
+  // before but is gone from the server copy was deleted on another tablet; one never synced is new here.
+  function mergeWithCloud(done) {
     Cloud.pull(function (err, remote) {
-      if (err) { syncing = true; cb(); toast('Couldn’t reach the cloud copy. Working on this tablet; it will sync when online.', 5000); return; }
-      syncing = true;
+      if (err || testMode) { done(!err); return; }
       if (remote.meta && (remote.meta.updated || 0) > (meta.updated || 0)) {
         meta = remote.meta; meta.schedule = meta.schedule || [];
         DB.saveMeta(meta, function () {});
@@ -335,17 +367,21 @@
         var lg = gameById(rg.id);
         if (!lg || (rg.updated || 0) > (lg.updated || 0)) takeRemoteGame(rg);
       });
-      Cloud.listen(onRemoteMeta, function (rg) {
-        if (testMode) return;
-        var lg = gameById(rg.id);
-        if (!lg || (rg.updated || 0) > (lg.updated || 0)) { takeRemoteGame(rg); refresh(); }
-      }, function (id) {
-        if (testMode || !gameById(id)) return;
-        games = games.filter(function (g) { return g.id !== id; });
-        DB.deleteGame(id);
-        if (route.id === id) go('#home'); else refresh();
-      });
-      cb();
+      done(true);
+    });
+  }
+
+  // Changes made on other tablets, as they happen (works from the offline copy too).
+  function listenCloud() {
+    Cloud.listen(onRemoteMeta, function (rg) {
+      if (testMode) return;
+      var lg = gameById(rg.id);
+      if (!lg || (rg.updated || 0) > (lg.updated || 0)) { takeRemoteGame(rg); refresh(); }
+    }, function (id) {
+      if (testMode || !gameById(id)) return;
+      games = games.filter(function (g) { return g.id !== id; });
+      DB.deleteGame(id);
+      if (route.id === id) go('#home'); else refresh();
     });
   }
 
