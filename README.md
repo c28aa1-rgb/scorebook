@@ -38,6 +38,11 @@ working on that device.
   so about 12 fit before it scrolls.
 - **CHG** records a charge taken by the selected player, then asks who on the other team was called for
   the offensive foul (tap their number, **No #**, **+ #** for a new number, or **Skip**).
+- **Coach and bench technicals:** tap the team's name (above their column, or their tab), then **TECH**, and
+  pick **Head coach**, **Assistant coach**, **Bench player** (pick who) or **Team**. Assistant and bench-player
+  technicals count against the head coach too: the top bar shows **HC 1T** / **HC 1+1T** (amber when one more
+  would eject) and **HC OUT** at 2 direct or 3 in all (NFHS; both limits and whether these count as team
+  fouls are in the rules). Reports list them under each box score.
 - **Technicals:** a player's card shows a red **1T** badge and turns amber after one technical; the second
   ejects them (red card, EJECTED). In the box score, **EJ** = ejected and **FO** = fouled out.
 

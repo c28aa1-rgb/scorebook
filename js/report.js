@@ -162,6 +162,19 @@
     return h.join('');
   }
 
+  // "Technicals off the court: head coach 1, assistant coach 1, bench players 1. Head coach ejected."
+  function staffText(c, tm) {
+    var s = c.staff[tm], parts = [];
+    if (s.hc) parts.push('head coach ' + s.hc);
+    if (s.ac) parts.push('assistant coach ' + s.ac);
+    if (s.bench) parts.push('bench players ' + s.bench);
+    if (s.team) parts.push('team ' + s.team);
+    if (!parts.length) return '';
+    var cs = C.coachStatus(s, c.rules);
+    return 'Technicals off the court: ' + parts.join(', ') + '.' + (cs.out ? ' Head coach ejected.' : '');
+  }
+  function staffLine(c, tm) { var t = staffText(c, tm); return t ? '<p class="key">' + esc(t) + '</p>' : ''; }
+
   // Show the SF column (points for being fouled on a shot, scrimmage rule) when the game uses it.
   function hasSF(c) { return !!(c.rules.shotFoulAward || c.team.us.awd || c.team.them.awd); }
   var SF_KEY = '<p class="key">SF = points for being fouled on a shot. They count in PTS but not as shots or free throws, so percentages aren’t affected.</p>';
@@ -186,7 +199,7 @@
     var on = C.pctShown(meta.settings);
     h.push('<tr class="pct"><td colspan="3"></td><td>' + pctText(on.fg, t.fgm, t.fga) + '</td><td>' +
       pctText(on.tp, t.tpm, t.tpa) + '</td><td>' + pctText(on.ft, t.ftm, t.fta) + '</td><td colspan="' + (9 + (pm ? 1 : 0) + (sf ? 1 : 0)) + '"></td></tr>');
-    h.push('</tbody></table></div>' + (sf ? SF_KEY : ''));
+    h.push('</tbody></table></div>' + staffLine(c, 'us') + (sf ? SF_KEY : ''));
     return h.join('');
   }
 
@@ -205,7 +218,7 @@
     });
     var t = c.team.them;
     h.push('<tr class="tot"><td class="l">Team</td><td>' + t.pts + '</td><td>' + t.fgm + '</td><td>' + t.tpm +
-      '</td><td>' + t.ftm + '</td>' + (sf ? '<td>' + (t.awd || 0) + '</td>' : '') + '<td>' + t.pf + '</td></tr></tbody></table></div>');
+      '</td><td>' + t.ftm + '</td>' + (sf ? '<td>' + (t.awd || 0) + '</td>' : '') + '<td>' + t.pf + '</td></tr></tbody></table></div>' + staffLine(c, 'them'));
     return h.join('');
   }
 
@@ -346,6 +359,9 @@
     var on = C.pctShown(meta.settings);
     lines.push('Team: FG ' + ma(t.fgm, t.fga) + (on.fg ? ' (' + pctText(true, t.fgm, t.fga) + ')' : '') + ', 3P ' + ma(t.tpm, t.tpa) +
       ', FT ' + ma(t.ftm, t.fta) + (t.awd ? ', shooting-foul points ' + t.awd : '') + ', REB ' + (t.oreb + t.dreb) + ', AST ' + t.ast + ', TO ' + t.to);
+    var st = staffText(c, 'us'), so = staffText(c, 'them');
+    if (st) lines.push(meta.team.name + ' — ' + st);
+    if (so) lines.push(oppName(game) + ' — ' + so);
     if (opts && opts.url) { lines.push(''); lines.push('Full report: ' + opts.url); }
     return lines.join('\n');
   }

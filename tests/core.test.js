@@ -37,6 +37,33 @@ test('technical fouls: warning at 1, ejection at 2', function () {
   assert.strictEqual(SB.outReason({ pf: 3, tf: 3 }, SB.copyRules({ techOut: 0 })), '');
 });
 
+test('coach and bench technicals', function () {
+  function tech(q, tm, p, w) { var e = ev(q, tm, p, 'foul', 't'); e.w = w; return e; }
+  var evs = [tech(1, 'us', '', 'hc')];
+  var c = SB.computeGame(game(evs));
+  assert.strictEqual(c.players[''], undefined, 'no player line for the coach');
+  assert.strictEqual(c.currentFouls.us, 1, 'counts as a team foul');
+  assert.deepStrictEqual(SB.coachStatus(c.staff.us, c.rules), { direct: 1, indirect: 0, total: 1, out: '', next: 'direct' });
+  // An assistant's and a bench player's technicals count against the head coach too.
+  evs.push(tech(1, 'us', '', 'ac'));
+  c = SB.computeGame(game(evs));
+  assert.strictEqual(SB.coachStatus(c.staff.us, c.rules).next, 'any');
+  evs.push(tech(2, 'us', 'b', 'bench'));
+  c = SB.computeGame(game(evs));
+  assert.strictEqual(SB.coachStatus(c.staff.us, c.rules).out, 'total');
+  assert.deepStrictEqual([c.players.b.pf, c.players.b.tf], [1, 1], 'the bench player gets the technical too');
+  // Two direct technicals eject on their own; a team technical never counts against the coach.
+  c = SB.computeGame(game([tech(1, 'them', '', 'hc'), tech(1, 'them', '', 'team'), tech(2, 'them', '', 'hc')]));
+  assert.strictEqual(SB.coachStatus(c.staff.them, c.rules).out, 'direct');
+  assert.strictEqual(c.staff.them.team, 1);
+  assert.strictEqual(c.opp[''], undefined);
+  // Optional: not team fouls. Scrimmages: no ejections.
+  c = SB.computeGame(game([tech(1, 'us', '', 'hc')], 1, SB.copyRules({ benchTechTeamFoul: false })));
+  assert.strictEqual(c.currentFouls.us, 0);
+  var s = SB.scrimmageRules(SB.copyRules());
+  assert.strictEqual(SB.coachStatus({ hc: 5, ac: 0, bench: 0, team: 0 }, s).out, '');
+});
+
 test('charges taken', function () {
   var c = SB.computeGame(game([ev(1, 'us', 'a', 'chg'), ev(2, 'us', 'a', 'chg'), ev(2, 'us', 'b', 'chg')]));
   assert.strictEqual(c.players.a.chg, 2);

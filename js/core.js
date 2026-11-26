@@ -8,6 +8,8 @@
  *                t: type, v: value }
  * Types: 'make' (v 1|2|3), 'miss' (v 1|2|3), 'reb' (v 'o'|'d'), 'ast', 'stl',
  *        'blk', 'to', 'chg' (charge taken), 'foul' (v 'p'|'t'), 'timeout' (v 'full'|'short'),
+ *        Technicals off the court carry w: 'hc' head coach, 'ac' assistant, 'team' (p ''), or
+ *        'bench' for a bench player (p = the player; counts against the head coach too).
  *        'sub' (v 'in'|'out'; only in games with subLog: true, which start from game.starters),
  *        'award' (v 1|2: points for being fouled on a shot under the scrimmage rule; counts as
  *        points, line.awd, but not as a shot or a free throw).
@@ -21,6 +23,9 @@
     periodMinutes: 8,
     foulOut: 5,            // 0 = players never foul out
     techOut: 2,            // technical fouls that eject a player (NFHS); 0 = no limit
+    coachTechDirect: 2,    // head coach ejected at this many direct technicals; 0 = never
+    coachTechTotal: 3,     // …or this many in all (direct + assistant + bench players); 0 = never
+    benchTechTeamFoul: true, // coach, assistant and team technicals count as team fouls
     bonusAt: 5,            // team foul number that starts free throws; 0 = no bonus
     doubleBonusAt: 0,      // team foul number for the double bonus (2 shots); 0 = none
     bonusReset: 'quarter', // team fouls reset: 'quarter' (each period) | 'half' | 'game' (never)
@@ -50,6 +55,7 @@
     var r = copyRules(base);
     r.name = 'Scrimmage';
     r.periods = 6; r.foulOut = 0; r.techOut = 0; r.bonusAt = 0; r.doubleBonusAt = 0;
+    r.coachTechDirect = 0; r.coachTechTotal = 0;
     r.timeoutsUnlimited = true; r.scoreResets = true; r.openEnded = true; r.shotFoulAward = true;
     return r;
   }
@@ -129,6 +135,8 @@
       fouls: { us: {}, them: {} },   // bucket -> count
       timeoutsUsed: { us: { full: 0, short: 0 }, them: { full: 0, short: 0 } },
       timeoutLog: [],
+      // Technicals off the court: head coach (direct), assistants, bench players, team.
+      staff: { us: { hc: 0, ac: 0, bench: 0, team: 0 }, them: { hc: 0, ac: 0, bench: 0, team: 0 } },
       runs: null
     };
     var i, e, line;
@@ -143,6 +151,16 @@
         continue;
       }
       if (e.t === 'sub') continue;
+      if (e.t === 'foul' && e.w && e.w !== 'bench') {
+        // Coach, assistant or team technical: no player gets it.
+        r.staff[e.tm][e.w]++;
+        if (rules.benchTechTeamFoul) {
+          var sb = foulBucket(e.q, rules);
+          r.fouls[e.tm][sb] = (r.fouls[e.tm][sb] || 0) + 1;
+        }
+        continue;
+      }
+      if (e.t === 'foul' && e.w === 'bench') r.staff[e.tm].bench++;
       if (e.tm === 'us') {
         line = r.players[e.p] || (r.players[e.p] = emptyLine());
       } else {
@@ -260,6 +278,17 @@
     return rules.foulOut > 0 && line.pf >= rules.foulOut ? 'fouled' : '';
   }
 
+  // Head coach's technicals: direct (their own) and in all (plus assistants' and bench players').
+  // out: 'direct' | 'total' | '' (ejected or not); next: one more technical would eject them
+  // ('any' = any bench technical, 'direct' = only another of their own).
+  function coachStatus(staff, rules) {
+    rules = rules || DEFAULT_RULES;
+    var direct = staff.hc, total = staff.hc + staff.ac + staff.bench, dOut = rules.coachTechDirect, tOut = rules.coachTechTotal;
+    var out = dOut > 0 && direct >= dOut ? 'direct' : tOut > 0 && total >= tOut ? 'total' : '';
+    var next = out ? '' : tOut > 0 && total === tOut - 1 ? 'any' : dOut > 0 && direct === dOut - 1 ? 'direct' : '';
+    return { direct: direct, indirect: total - direct, total: total, out: out, next: next };
+  }
+
   function pct(m, a) { return a ? Math.round((m / a) * 1000) / 10 : null; }
 
   function fmtPct(m, a) {
@@ -349,6 +378,7 @@
     gameFlow: gameFlow,
     foulState: foulState,
     outReason: outReason,
+    coachStatus: coachStatus,
     lineupAfter: lineupAfter,
     plusMinus: plusMinus,
     fmtPm: fmtPm,

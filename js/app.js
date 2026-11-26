@@ -263,7 +263,8 @@
   }
 
   function describe(e, g) {
-    var who;
+    var who, staff = { hc: 'head coach', ac: 'assistant coach', team: 'team' };
+    if (e.t === 'foul' && staff[e.w]) return (e.tm === 'us' ? meta.team.name : (g.opponent || 'Opponent')) + ' — technical on the ' + staff[e.w];
     if (e.t === 'timeout') who = e.tm === 'us' ? meta.team.name : (g.opponent || 'Opponent');
     else if (e.tm === 'us') { var p = player(e.p) || R.findPlayer(g, meta, e.p); who = p ? '#' + p.num + ' ' + shortName(p) : 'Player'; }
     else who = e.p ? (g.opponent || 'Opp') + ' #' + e.p : (g.opponent || 'Opponent');
@@ -274,7 +275,7 @@
     var d;
     if (e.t === 'make' || e.t === 'miss') d = what[e.t][e.v];
     else if (e.t === 'reb') d = e.v === 'o' ? 'offensive rebound' : 'defensive rebound';
-    else if (e.t === 'foul') d = e.v === 't' ? 'technical foul' : e.of ? 'offensive foul' : 'foul';
+    else if (e.t === 'foul') d = e.v === 't' ? (e.w === 'bench' ? 'technical (on the bench)' : 'technical foul') : e.of ? 'offensive foul' : 'foul';
     else if (e.t === 'timeout') d = e.v === 'short' ? '30-second timeout' : 'full timeout';
     else if (e.t === 'sub') d = e.v === 'in' ? 'subbed in' : 'subbed out';
     else if (e.t === 'award') d = (e.v === 1 ? 'point' : e.v + ' points') + ' for shooting foul';
@@ -698,8 +699,12 @@
     for (i = 0; i < c.timeoutsAllot.full; i++) pips += '<span class="pip' + (i < full ? ' on' : '') + '"></span>';
     for (i = 0; i < c.timeoutsAllot.short; i++) pips += '<span class="pip s' + (i < short ? ' on' : '') + '"></span>';
     var to = 'TO ' + pips + '</span><span>' + (r.timeoutsUnlimited ? '∞' : full + '+' + short) + '</span>';
+    // Head coach's technicals at a glance: "HC 1T", "HC 1+1T" (direct + from the bench), "HC OUT".
+    var cs = C.coachStatus(c.staff[tm], r), hc = '';
+    if (cs.total) hc = ' <span class="tag-coach' + (cs.out ? ' out' : cs.next ? ' warn' : '') + '">' +
+      (cs.out ? 'HC OUT' : 'HC ' + cs.direct + (cs.indirect ? '+' + cs.indirect : '') + 'T') + '</span>';
     h.push('<div class="tm ' + tm + '"><span class="tm-score">' + c.score[tm] + '</span><div class="tm-info">');
-    h.push('<span class="tm-name">' + esc(name) + '</span>');
+    h.push('<span class="tm-name">' + esc(name) + hc + '</span>');
     // Shown on the team that shoots: BONUS once the other side reaches the bonus foul,
     // "1 TO BONUS" when their next foul gets there.
     var bonus = c.inDoubleBonus[tm] ? '<span class="bonus">DOUBLE BONUS</span>' : c.inBonus[tm] ? '<span class="bonus">BONUS</span>' :
@@ -817,10 +822,10 @@
     if (ui.side === 'us') {
       var p = ui.sel ? player(ui.sel) : null;
       return '<div class="pad-head"><span class="lbl">' + (p ? '#' + esc(p.num) + ' ' + esc(shortName(p)) + ' <em>— what happened?</em>'
-        : '<em>Tap a player, then what they did</em>') + '</span></div>';
+        : '<em>Tap a player, then what they did · TECH now = coach or bench technical</em>') + '</span></div>';
     }
-    return '<div class="pad-head"><span class="lbl">' + esc(g.opponent) + ' ' + (ui.oppSel ? '#' + esc(ui.oppSel) : '<em>team (no number)</em>') +
-      ' <em>— what happened?</em></span></div>';
+    return '<div class="pad-head"><span class="lbl">' + esc(g.opponent) + ' ' + (ui.oppSel ? '#' + esc(ui.oppSel) + ' <em>— what happened?</em>'
+      : '<em>team (no number) — what happened? · TECH = coach or bench technical</em>') + '</span></div>';
   }
 
   function key(a, x, big, small, cls) {
@@ -913,6 +918,28 @@
         '<h4 class="bench-hd">Bench</h4><div class="bench">' + bench.map(function (p) { return benchBtn(p, 'subTap'); }).join('') + '</div>' +
         '<p class="note">Subs entered any time before the next point count exactly for plus/minus, so it’s fine to catch up during free throws.</p>';
       return sheet('Substitutions', h, '<button class="btn pri" data-a="closeDrawer">Done</button>');
+    }
+    if (d === 'tech-us' || d === 'tech-them') {
+      var ttm = d.slice(5), tname = ttm === 'us' ? meta.team.name : g.opponent, cs = C.coachStatus(c.staff[ttm], r);
+      if (ui.techBench) {
+        // Bench player: ours are everyone not on the court; theirs are the numbers entered so far.
+        var who = ttm === 'us'
+          ? seasonPlayers().filter(function (p) { return g.onCourt.indexOf(p.id) < 0; }).map(function (p) { return [p.id, p.num, shortName(p)]; })
+          : (g.oppNums || []).slice().sort(function (a, b) { return R.byJersey({ num: a }, { num: b }); }).map(function (n) { return [n, n, '']; });
+        h = '<div class="bench">' + who.map(function (w) {
+          return '<button class="bp" data-a="techTo" data-x="' + ttm + ':bench:' + esc(w[0]) + '"><span class="num">' + esc(w[1]) + '</span><span>' + esc(w[2]) + '</span></button>';
+        }).join('') + '</div>' + (who.length ? '' : '<p class="note">No numbers entered for them yet. Add the number from their column first.</p>');
+        return sheet('Technical on a ' + tname + ' bench player', h, '<button class="btn ghost" data-a="techBack" data-x="' + ttm + '">Back</button>', true);
+      }
+      var lim = (r.coachTechDirect ? 'out at ' + r.coachTechDirect + ' direct' : '') + (r.coachTechDirect && r.coachTechTotal ? ' or ' : '') +
+        (r.coachTechTotal ? r.coachTechTotal + ' in all' : '');
+      h = '<p class="note" style="margin-top:0">Head coach so far: <b>' + cs.direct + ' direct</b>, ' + cs.indirect + ' from assistants and bench players' +
+        (lim ? ' (' + lim + ')' : '') + (cs.out ? '. <b>Ejected.</b>' : '.') + '</p><div class="stack">' +
+        '<button class="btn" data-a="techTo" data-x="' + ttm + ':hc">Head coach<small>direct technical</small></button>' +
+        '<button class="btn" data-a="techTo" data-x="' + ttm + ':ac">Assistant coach<small>counts against the head coach</small></button>' +
+        '<button class="btn" data-a="techBenchPick">Bench player<small>pick who · counts against the head coach</small></button>' +
+        '<button class="btn" data-a="techTo" data-x="' + ttm + ':team">Team<small>e.g. delay, too many players</small></button></div>';
+      return sheet('Technical foul · ' + tname, h, '', true);
     }
     if (d === 'rules') {
       return sheet('Rules for this game', '<p class="note" style="margin-top:0">Changes apply right away: team fouls, bonus and timeouts left are worked out again ' +
@@ -1017,6 +1044,8 @@
       num('bonusAt', 'Bonus on team foul (0 = none)') + num('doubleBonusAt', 'Double bonus on (0 = none)') +
       sel('bonusReset', 'Team fouls reset', [['quarter', 'Each period'], ['half', 'Each half'], ['game', 'Never']]) +
       sel('otFoulsCarry', 'Team fouls in OT', [['1', 'Carry over'], ['0', 'Start at 0']]) +
+      num('coachTechDirect', 'Coach out at direct techs (0 = never)') + num('coachTechTotal', 'Coach out at total techs (0 = never)') +
+      sel('benchTechTeamFoul', 'Coach / bench techs are team fouls', [['1', 'Yes'], ['0', 'No']]) +
       sel('shotFoulAward', 'After +1, ask "free throw?"', [['0', 'No (always a free throw)'], ['1', 'Yes (point or free throw)']]) + '</div>' +
       '<h3 class="rules-hd">Timeouts</h3><div class="form rules">' + sel('timeoutsUnlimited', 'Timeouts', [['0', 'Limited'], ['1', 'Unlimited']]) +
       num('timeoutsFull', 'Full') + num('timeoutsShort', '30-second') +
@@ -1024,7 +1053,7 @@
       num('otTimeoutsFull', 'Full added per OT') + num('otTimeoutsShort', '30-sec added per OT') + '</div>';
   }
 
-  var BOOL_RULES = { otFoulsCarry: 1, scoreResets: 1, openEnded: 1, shotFoulAward: 1, timeoutsUnlimited: 1 };
+  var BOOL_RULES = { otFoulsCarry: 1, scoreResets: 1, openEnded: 1, shotFoulAward: 1, timeoutsUnlimited: 1, benchTechTeamFoul: 1 };
   function ruleValue(k, v) {
     if (BOOL_RULES[k]) return v === '1';
     if (k === 'bonusReset' || k === 'timeoutsReset') return v;
@@ -1112,7 +1141,13 @@
   actions.fullscreen = function () { if (fsActive()) exitFullscreen(); else enterFullscreen(); };
 
   // Live: choosing who
-  actions.side = function (x) { ui.side = x; ui.prompt = null; render(); };
+  // Tapping a team's name (or tab) points the pad at that team with nobody picked, so TECH
+  // then means a coach, bench or team technical.
+  actions.side = function (x) {
+    ui.side = x; ui.prompt = null;
+    if (x === 'us') ui.sel = null; else ui.oppSel = null;
+    render();
+  };
   // Tapping a player always selects (never toggles off): after a free throw the shooter
   // stays selected, and a reflexive second tap must not clear it.
   // Picking a player also points the pad at their team (both teams show at once on wide screens).
@@ -1136,6 +1171,7 @@
   // Live: our team stat
   actions.act = function (x) {
     var g = gameById(route.id), parts = x.split(':'), t = parts[0], v = parts[1];
+    if (!ui.sel && t === 'foul' && v === 't') { ui.drawer = 'tech-us'; ui.techBench = false; return render(); }
     if (!ui.sel) { padMsg('Pick a player first'); return render(); }
     if (t === 'make' || t === 'miss') v = parseInt(v, 10);
     var c = C.computeGame(g), pl = c.players[ui.sel];
@@ -1191,6 +1227,7 @@
   actions.oppAct = function (x) {
     var g = gameById(route.id), parts = x.split(':'), t = parts[0], v = parts[1];
     if (t === 'make') v = parseInt(v, 10);
+    if (t === 'foul' && v === 't' && !ui.oppSel) { ui.drawer = 'tech-them'; ui.techBench = false; return render(); }
     if (t === 'foul') oppFoul(g, ui.oppSel || '', v);
     else {
       var e = addEvent(g, 'them', ui.oppSel || '', t, v);
@@ -1421,11 +1458,44 @@
     // 'keypad-chg' is the number keypad opened from the charge sheet: the number gets the offensive foul.
     ui.kpFor = x === 'keypad-chg' ? 'chg' : null;
     if (x === 'keypad-chg') x = 'keypad';
-    ui.drawer = x; ui.prompt = null; ui.armed = null; ui.pendSub = null;
+    ui.drawer = x; ui.prompt = null; ui.armed = null; ui.pendSub = null; ui.techBench = false;
     if (x === 'keypad') ui.kp = '';
     render();
   };
-  actions.closeDrawer = function () { ui.drawer = null; ui.armed = null; ui.kpFor = null; ui.pendSub = null; ui.subOut = null; render(); };
+  actions.closeDrawer = function () { ui.drawer = null; ui.armed = null; ui.kpFor = null; ui.pendSub = null; ui.subOut = null; ui.techBench = false; render(); };
+
+  // Technicals off the court (team name, then TECH): head coach, assistant, a bench player or the team.
+  actions.techBenchPick = function () { ui.techBench = true; render(); };
+  actions.techBack = function () { ui.techBench = false; render(); };
+  actions.techTo = function (x) {
+    var g = gameById(route.id), p = x.split(':'), tm = p[0], w = p[1], id = p.slice(2).join(':');
+    var e = addEvent(g, tm, w === 'bench' ? id : '', 'foul', 't');
+    e.w = w;
+    saveGame(g);
+    ui.drawer = null; ui.techBench = false;
+    var c = C.computeGame(g), team = tm === 'us' ? meta.team.name : g.opponent, notes = [];
+    if (w === 'bench') {
+      var name = tm === 'us' ? subName(id) : g.opponent + ' #' + id;
+      notes.push('Technical on ' + name + ' (bench).');
+      notes.push(foulNotice(name, (tm === 'us' ? c.players : c.opp)[id], c.rules, true, false));
+    } else {
+      notes.push('Technical on the ' + team + ' ' + { hc: 'head coach', ac: 'assistant coach', team: 'team' }[w] + '.');
+    }
+    if (w !== 'team') notes.push(coachNotice(team, C.coachStatus(c.staff[tm], c.rules), w));
+    notes = notes.filter(Boolean);
+    toast(notes.join(' '), notes.length > 1 ? 6000 : 0);
+    render();
+  };
+
+  function coachNotice(team, cs, w) {
+    if (cs.out === 'direct') return team + '’s head coach is ejected (' + cs.direct + ' direct technicals).';
+    if (cs.out === 'total') return team + '’s head coach is ejected (' + cs.total + ' technicals on the bench).';
+    var out = [];
+    if (w === 'hc' && cs.direct === 1) out.push('The head coach must stay seated.');
+    if (cs.next === 'any') out.push('One more bench technical ejects the head coach.');
+    else if (cs.next === 'direct') out.push('One more technical on the head coach ejects them.');
+    return out.join(' ');
+  }
   actions.chgFoul = function (x) {
     var g = gameById(route.id);
     ui.drawer = null;
