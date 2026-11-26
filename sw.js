@@ -1,5 +1,5 @@
 // Offline cache for the app shell. Bump VERSION whenever any cached file changes.
-var VERSION = 'scorebook-v21';
+var VERSION = 'scorebook-v22';
 var FILES = [
   './', './index.html', './css/app.css', './js/core.js', './js/db.js', './js/report.js', './js/sample.js', './js/schedule.js', './js/app.js',
   './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
