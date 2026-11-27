@@ -74,7 +74,8 @@ started after subs were recorded (Nov 2026 onward); older games show —.
 everything to all games, home, away, wins, losses, the last 5 or 10, or scrimmages (which are otherwise
 left out).
 
-**Search** (the box under the tabs, also on player pages): as you type, a list of matching players, stats
+**Search** (the magnifier at the top of Stats and player pages; it opens into a search field, and × or
+Escape closes it): as you type, a list of matching players, stats
 and games appears. Tap one, or press Enter for the first. A player or game opens it, and a stat opens the
 players view sorted by it (e.g. "free throw" → Shooting, sorted by FT%) or scrolls to it on its sheet
 (e.g. "close games" on Team). Searching for a player or opponent also narrows the lists on the current tab
@@ -97,7 +98,7 @@ Tabs:
   of each starting lineup (from games that recorded subs).
 - **Game log:** each game's team numbers and top scorer.
 
-Tap a player anywhere for their page: season line, rank on the team in each stat, shooting bars, points
+Tap a player anywhere for their page, headed by their jersey in the team color: season line, rank on the team in each stat, shooting bars, points
 mix, impact numbers, points by game and by quarter, season highs, splits (home/away, wins/losses, started/
 bench, last 3), their best lineups and the full game log. Tap a game to open its report.
 
