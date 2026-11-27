@@ -132,6 +132,9 @@ you type yourself are never replaced.
 Schedule entries can be scrimmages (Start scrimmage opens the scrimmage setup) or have the opponent
 `TBD` (tournaments), which leaves the opponent blank on New game.
 
+**Roster:** the players are listed first; **Add players** at the bottom opens the form (it opens on its own when
+the roster is empty) and stays open after each add for the next one.
+
 **No jerseys yet?** On Roster, leave Jersey blank. The player shows with their initials (cards, subs,
 running score) and by name elsewhere; type the number in on Roster later and every game, including ones
 already played, shows it.

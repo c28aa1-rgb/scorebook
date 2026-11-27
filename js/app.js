@@ -988,19 +988,8 @@
     var ps = seasonPlayers(), season = find(meta.seasons, meta.currentSeasonId);
     var h = [pageHead('Roster · ' + season.name, backBtn('#home', 'Home'), '')];
     h.push('<div class="pg-bd">');
-    h.push('<h2>Add a player</h2>');
-    h.push('<form class="form" data-form="addPlayer">' +
-      '<div class="fld xs"><label for="np-num">Jersey</label><input id="np-num" name="num" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="later"></div>' +
-      '<div class="fld"><label for="np-first">First name</label><input id="np-first" name="first" autocomplete="off" required></div>' +
-      '<div class="fld"><label for="np-last">Last name</label><input id="np-last" name="last" autocomplete="off"></div>' +
-      '<div class="fld xs"><span class="lab">&nbsp;</span><button class="btn pri" type="submit">Add</button></div></form>' +
-      '<p class="note">No jerseys yet? Leave Jersey blank: the player shows with their initials until you type the number in below, and games already played pick it up too.</p>');
-    h.push('<h2>' + ps.length + ' players</h2>');
-    if (!ps.length) {
-      var prev = meta.seasons.filter(function (s) { return s.id !== meta.currentSeasonId; });
-      h.push('<p class="note">Add each player once. Names can be hidden on shared reports in Settings.</p>');
-      if (prev.length) h.push('<button class="btn" data-a="copyRoster">Copy roster from ' + esc(prev[prev.length - 1].name) + '</button>');
-    }
+    h.push('<h2>' + ps.length + ' player' + (ps.length === 1 ? '' : 's') + '</h2>');
+    if (!ps.length) h.push('<p class="note">No players yet. Add each player once below. Names can be hidden on shared reports in Settings.</p>');
     h.push('<ul class="roster">');
     ps.forEach(function (p) {
       h.push('<li><input class="rn" value="' + esc(p.num) + '" placeholder="–" maxlength="2" inputmode="numeric" data-edit="num" data-x="' + p.id + '" aria-label="Jersey">' +
@@ -1009,7 +998,23 @@
         '<button class="btn sm danger' + (ui.armed === 'rm' + p.id ? ' armed' : '') + '" data-a="rmPlayer" data-x="' + p.id + '">' +
         (ui.armed === 'rm' + p.id ? 'Confirm remove' : 'Remove') + '</button></li>');
     });
-    h.push('</ul></div>');
+    h.push('</ul>');
+    // Adding players lives in a section at the bottom that opens on demand (open when the roster is empty).
+    var open = ui.rosterOpen === undefined ? !ps.length : ui.rosterOpen;
+    h.push('<div class="add-area' + (open ? ' open' : '') + '"><button class="add-toggle" data-a="rosterToggle"><span class="pm">' + (open ? '−' : '+') + '</span>' +
+      '<b>Add players</b><small>One at a time' + (ps.length ? '' : ', or copy last season’s roster') + '</small></button>');
+    if (open) {
+      h.push('<div class="add-body"><h3 class="add-hd">Add a player</h3><form class="form" data-form="addPlayer">' +
+        '<div class="fld xs"><label for="np-num">Jersey</label><input id="np-num" name="num" inputmode="numeric" maxlength="2" autocomplete="off" placeholder="later"></div>' +
+        '<div class="fld"><label for="np-first">First name</label><input id="np-first" name="first" autocomplete="off" required></div>' +
+        '<div class="fld"><label for="np-last">Last name</label><input id="np-last" name="last" autocomplete="off"></div>' +
+        '<div class="fld xs"><span class="lab">&nbsp;</span><button class="btn pri" type="submit">Add</button></div></form>' +
+        '<p class="note">No jerseys yet? Leave Jersey blank: the player shows with their initials until you type the number in above, and games already played pick it up too.</p>');
+      var prev = meta.seasons.filter(function (x) { return x.id !== meta.currentSeasonId; });
+      if (!ps.length && prev.length) h.push('<div class="form"><button class="btn" data-a="copyRoster">Copy roster from ' + esc(prev[prev.length - 1].name) + '</button></div>');
+      h.push('</div>');
+    }
+    h.push('</div></div>');
     return h.join('');
   };
 
@@ -2050,6 +2055,11 @@
     render();
   };
   // Schedule
+  actions.rosterToggle = function () {
+    ui.rosterOpen = !(ui.rosterOpen === undefined ? !seasonPlayers().length : ui.rosterOpen);
+    render();
+    if (ui.rosterOpen) { var el = document.querySelector('.add-area'); if (el) el.scrollIntoView(); var n = document.getElementById('np-num'); if (n) n.focus(); }
+  };
   actions.schedToggle = function () {
     ui.schedOpen = !(ui.schedOpen === undefined ? !seasonSchedule().length : ui.schedOpen);
     render();
@@ -2496,8 +2506,9 @@
       if (num && seasonPlayers().some(function (p) { return p.num === num; })) { toast('Jersey #' + num + ' is already on the roster.'); return; }
       meta.players.push({ id: uid(), seasonId: meta.currentSeasonId, num: num, first: first, last: last });
       saveMeta();
+      ui.rosterOpen = true;
       render();
-      var n = document.getElementById('np-num'); if (n) n.focus();
+      var n = document.getElementById('np-num'); if (n) { n.focus(); n.scrollIntoView({ block: 'center' }); }
     }
   });
 
