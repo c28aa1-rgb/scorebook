@@ -548,7 +548,8 @@
 
   function playersSheet(S, ctx, view) {
     view = VIEWS[view] ? view : 'pergame';
-    var cols = playerCols(view, ctx), rows = rosterRows(S, ctx), sort = ctx.sort || {};
+    // Default order: most games played first (ties keep jersey order).
+    var cols = playerCols(view, ctx), rows = rosterRows(S, ctx), sort = ctx.sort || { k: 'gp', dir: 'desc' };
     var sc = null;
     cols.forEach(function (c) { if (c.k === sort.k) sc = c; });
     if (sc) rows.sort(function (a, b) {
@@ -567,8 +568,8 @@
           { lab: 'Points', v: d(function (l) { return l.pts; }) }, { lab: 'Rebounds', v: d(reb), cls: 'c' },
           { lab: 'Assists', v: d(function (l) { return l.ast; }), cls: 'd' }, { lab: 'Steals + blocks', v: d(function (l) { return l.stl + l.blk; }), cls: 'e' }]));
       } else if (view === 'shooting') {
-        var sc = scatter(S, ctx);
-        if (sc) h.push(h2('Volume and efficiency') + sc);
+        var chart = scatter(S, ctx);
+        if (chart) h.push(h2('Volume and efficiency') + chart);
       } else {
         var oo = played.map(function (r) { var o = onOff(r.s); return { label: r.label, v: o.on !== null && o.off !== null ? o.on - o.off : null }; })
           .filter(function (r) { return r.v !== null; }).sort(function (a, b) { return b.v - a.v; });

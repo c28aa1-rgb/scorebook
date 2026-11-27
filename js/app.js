@@ -483,6 +483,7 @@
     app.innerHTML = route.name === 'game' ? fn() : '<div class="pg">' + fn() + '</div>';
     // No pull-to-refresh on the live screen, where a downward swipe is easy to make by accident.
     document.documentElement.classList.toggle('in-game', route.name === 'game');
+    if (route.name === 'stats' || route.name === 'player') applyStatSearch(false);
     if (route.name === 'game' && ui.flash) {
       var el = app.querySelector('[data-flash="1"]');
       ui.flash = null;
@@ -685,6 +686,132 @@
     }).join('') + '</select></label>';
   }
 
+
+  // ----- Stats search -----
+  // One box on every stats screen. As you type: a jump list of matching players, stats and games
+  // (tap one, or Enter for the first), and the lists on the current sheet narrow to matching rows.
+  // Stat entries: words to match, then where to go (players table view + sort, or a sheet + a label to scroll to).
+  var STAT_INDEX = [
+    ['Points per game', 'points ppg pts scoring scorer', 'pergame', 'pts'], ['Rebounds per game', 'rebounds reb rpg boards', 'pergame', 'reb'],
+    ['Offensive rebounds', 'offensive rebounds oreb or', 'pergame', 'oreb'], ['Defensive rebounds', 'defensive rebounds dreb dr', 'pergame', 'dreb'],
+    ['Assists per game', 'assists ast apg passing', 'pergame', 'ast'], ['Steals per game', 'steals stl spg', 'pergame', 'stl'],
+    ['Blocks per game', 'blocks blk bpg', 'pergame', 'blk'], ['Turnovers per game', 'turnovers to tov', 'pergame', 'to'],
+    ['Fouls per game', 'fouls pf personal', 'pergame', 'pf'], ['Charges taken', 'charges chg', 'pergame', 'chg'],
+    ['Plus/minus', 'plus minus +/- pm', 'pergame', 'pm'], ['Games played', 'games played gp', 'pergame', 'gp'], ['Games started', 'starts started gs starters', 'pergame', 'gs'],
+    ['Field goal %', 'field goal percentage fg% fgp shooting', 'shooting', 'fgp'], ['2-point %', 'two 2-point 2p% twos', 'shooting', 'twop'],
+    ['3-point %', 'three 3-point 3p% threes 3pt', 'shooting', 'tpp'], ['Free throw %', 'free throw ft% ftp foul shots', 'shooting', 'ftp'],
+    ['Effective FG%', 'effective efg', 'shooting', 'efg'], ['True shooting %', 'true shooting ts', 'shooting', 'ts'],
+    ['Points per shot', 'points per shot pps efficiency', 'shooting', 'pps'], ['3-point attempt rate', '3pa rate three attempt', 'shooting', 'tpr'],
+    ['Free throw rate', 'free throw rate ftr', 'shooting', 'ftr'], ['Shot volume vs efficiency', 'scatter volume efficiency chart', 'shooting', 'efg'],
+    ['3-pointers made', 'threes made 3pm', 'totals', 'tpm'], ['Free throws made', 'free throws made ftm', 'totals', 'ftm'],
+    ['Technical fouls', 'technicals tf tech', 'totals', 'tf'], ['Season totals', 'totals season total', 'totals', 'pts'],
+    ['Game score', 'game score gmsc rating', 'advanced', 'gmsc'], ['Usage', 'usage usg possessions used', 'advanced', 'usg'],
+    ['Share of team points', 'share team points %pts', 'advanced', 'share'], ['Assist-to-turnover', 'assist turnover ratio ast/to ato', 'advanced', 'ato'],
+    ['Steals + blocks', 'stocks steals blocks defense', 'advanced', 'stocks'], ['Double-doubles', 'double doubles dd', 'advanced', 'dd'],
+    ['Quarters played', 'quarters periods played qtrs minutes', 'advanced', 'qp'], ['On/off court', 'on off court net impact', 'advanced', 'diff'],
+    ['Record', 'record wins losses w-l', 'team', 'Record'], ['Home and away', 'home away road', 'team', 'Home'], ['Streak', 'streak', 'team', 'Streak'],
+    ['Scoring by quarter', 'quarter period halves scoring by', 'team', 'Scoring by'], ['Margin by game', 'margin game by game wins losses chart', 'team', 'Game by game'],
+    ['Points by game', 'points by game trend', 'team', 'Points by game'], ['Shooting by game', 'shooting by game trend', 'team', 'Shooting by game'],
+    ['Where the points come from', 'points mix 2s 3s free throws breakdown', 'team', 'Where the points'],
+    ['Possessions and points per 100', 'possessions pace offense defense rating per 100 efficiency', 'team', 'Possessions'],
+    ['Close games', 'close games clutch', 'team', 'Close games'], ['Leading or trailing at half', 'half halftime leading trailing', 'team', 'Leading at half'],
+    ['Scored first', 'scored first start', 'team', 'Scored first'], ['Fouls and free throws', 'fouls drawn free throws bonus', 'team', 'Fouls and free throws'],
+    ['Opponents', 'opponents head to head results by opponent', 'team', 'Opponents'], ['Team highs', 'team highs records best game', 'team', 'Team highs'],
+    ['Leaders', 'leaders top best', 'leaders', ''], ['Single-game highs', 'single game highs career high records', 'leaders', 'Single-game highs'],
+    ['Lineups', 'lineups five units groups combinations', 'lineups', ''], ['Starting lineups', 'starting lineups starters', 'lineups', 'Starting lineups'],
+    ['Game log', 'game log games results schedule', 'games', '']
+  ];
+  var sqResults = [];
+
+  function searchBox() {
+    return '<div class="stat-search"><input id="stat-q" type="search" data-statq="1" placeholder="Search players, stats, games…" autocomplete="off" value="' +
+      esc(ui.statQ || '') + '" aria-label="Search stats"><div class="sq-res" id="sq-res" hidden></div></div>';
+  }
+  function sqWords(q) { return String(q || '').toLowerCase().split(/\s+/).filter(Boolean); }
+  function sqHas(text, words) { text = String(text).toLowerCase(); return words.every(function (w) { return text.indexOf(w) >= 0; }); }
+
+  function statSearchResults(q) {
+    var words = sqWords(q), out = [];
+    if (!words.length) return out;
+    var ps = seasonPlayers();
+    ps.forEach(function (p) {
+      if (sqHas((p.num ? '#' + p.num + ' ' + p.num + ' ' : '') + (p.first || '') + ' ' + (p.last || ''), words)) {
+        out.push({ kind: 'Player', label: pTag(p) || 'Player', go: '#player/' + p.id });
+      }
+    });
+    STAT_INDEX.forEach(function (s) {
+      if (sqHas(s[0] + ' ' + s[1], words)) out.push({ kind: 'Stat', label: s[0], stat: s });
+    });
+    seasonGames().filter(function (g) { return g.status === 'final'; }).forEach(function (g) {
+      var c = C.computeGame(g), d = R.fmtDate(g.date);
+      if (sqHas(g.opponent + ' ' + d + ' ' + (g.homeAway === 'away' ? 'away @' : 'home vs') + (g.type === 'scrimmage' ? ' scrimmage' : ''), words)) {
+        out.push({ kind: 'Game', label: (g.homeAway === 'away' ? '@ ' : 'vs ') + g.opponent + ' · ' + d.replace(/, \d{4}$/, '') + ' · ' +
+          (c.score.us > c.score.them ? 'W ' : c.score.us < c.score.them ? 'L ' : 'T ') + c.score.us + '–' + c.score.them, go: '#report/' + g.id });
+      }
+    });
+    return out;
+  }
+
+  // Applies the search to the screen: the jump list, and narrowing the lists on the current sheet.
+  function applyStatSearch(showList) {
+    var input = document.getElementById('stat-q'), box = document.getElementById('sq-res');
+    if (!input) return;
+    var q = ui.statQ || '', words = sqWords(q);
+    sqResults = statSearchResults(q);
+    if (box) {
+      if (!words.length || !showList) box.hidden = true;
+      else {
+        box.hidden = false;
+        box.innerHTML = sqResults.length ? sqResults.slice(0, 9).map(function (r, i) {
+          return '<button data-a="sqGo" data-x="' + i + '"><small>' + r.kind + '</small><span>' + esc(r.label) + '</span></button>';
+        }).join('') + (sqResults.length > 9 ? '<p>' + (sqResults.length - 9) + ' more: keep typing to narrow it down</p>' : '')
+          : '<p>Nothing matches “' + esc(q) + '”.</p>';
+      }
+    }
+    // Narrow the lists of people and games on the sheet (not the team numbers, which aren't a list).
+    var sheet = document.querySelector('.sx-wrap');
+    if (!sheet) return;
+    var rows = sheet.querySelectorAll('.sx-t tbody tr:not(.tot), .sx-ldr li, .sx-mult .row, .sx-div .row'), shown = 0, any = false;
+    var narrowing = words.length && sqResults.some(function (r) { return r.kind !== 'Stat'; });
+    for (var i = 0; i < rows.length; i++) {
+      var hit = !narrowing || sqHas(rows[i].textContent, words);
+      rows[i].style.display = hit ? '' : 'none';
+      // Count list rows, not the matching bars in the charts above them.
+      if (rows[i].className.split(' ').indexOf('row') < 0) { any = true; if (hit) shown++; }
+    }
+    // Leader cards with nobody matching are hidden too.
+    var cards = sheet.querySelectorAll('.sx-ldr');
+    for (var c = 0; c < cards.length; c++) {
+      var visible = false, lis = cards[c].querySelectorAll('li');
+      for (var k = 0; k < lis.length; k++) if (lis[k].style.display !== 'none') visible = true;
+      cards[c].style.display = narrowing && !visible ? 'none' : '';
+    }
+    var note = document.getElementById('sq-note');
+    if (!note) { note = document.createElement('p'); note.id = 'sq-note'; note.className = 'sq-note'; sheet.insertBefore(note, sheet.firstChild); }
+    note.hidden = !(narrowing && any);
+    note.innerHTML = narrowing && any ? 'Showing ' + shown + ' row' + (shown === 1 ? '' : 's') + ' matching “' + esc(q) + '”. <button data-a="sqClear">Show all</button>' : '';
+    // Point out matching stat labels (column headings and list labels).
+    var labels = sheet.querySelectorAll('.sx-t th, .sx-dl dt, .sx h2, .sx-ldr h3');
+    for (var j = 0; j < labels.length; j++) {
+      var on = words.length && !narrowing && sqHas(labels[j].textContent, words);
+      if (on) labels[j].classList.add('sq-hit'); else labels[j].classList.remove('sq-hit');
+    }
+  }
+
+  // Scrolls to a label on the sheet after jumping to it (e.g. "Close games" on the Team sheet).
+  function focusStatLabel(text) {
+    var all = document.querySelectorAll('.sx-wrap h2, .sx-wrap dt, .sx-wrap h3, .sx-wrap .sx-kpis span');
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].textContent.toLowerCase().indexOf(text.toLowerCase()) === 0) {
+        var el = all[i].closest ? (all[i].closest('.sx-dl > div') || all[i].closest('.sx-kpis > div') || all[i]) : all[i];
+        el.scrollIntoView({ block: 'center' });
+        el.classList.add('sq-flash');
+        setTimeout(function () { el.classList.remove('sq-flash'); }, 1800);
+        return;
+      }
+    }
+  }
+
   screens.stats = function () {
     var tab = route.id || 'team', season = find(meta.seasons, meta.currentSeasonId) || {}, SS = window.SBStats;
     ui.lastStats = tab;
@@ -692,6 +819,7 @@
     h.push('<div class="stat-bar no-print"><div class="seg stat-tabs">' + STAT_TABS.map(function (t) {
       return '<button data-a="go" data-x="#stats/' + t[0] + '" class="' + (tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>';
     }).join('') + '</div>' + filterSelect() + '</div>');
+    h.push('<div class="stat-bar sub no-print">' + searchBox() + '</div>');
     if (tab === 'players') {
       var v = ui.statView || 'pergame';
       h.push('<div class="stat-bar sub no-print"><div class="seg stat-views">' + Object.keys(SS.VIEWS).map(function (k) {
@@ -717,7 +845,7 @@
       (next ? '<button class="btn sm" data-a="go" data-x="#player/' + next.id + '">' + esc(jerseyOf(next)) + ' ›</button>' : '') +
       '<button class="btn sm" data-a="printStats">Print</button>';
     var h = [pageHead(pTag(p), backBtn('#stats/' + (ui.lastStats || 'players'), 'Stats'), nav)];
-    h.push('<div class="stat-bar no-print"><span class="stat-hint">Tap a game to open its report</span>' + filterSelect() + '</div>');
+    h.push('<div class="stat-bar no-print">' + searchBox() + filterSelect() + '</div>');
     h.push('<div class="sx-wrap">' + window.SBStats.player(statsData(), statsCtx(false), p.id) + '</div>');
     if (ui.drawer === 'print') h.push(printPicker(p.id));
     return h.join('');
@@ -2128,14 +2256,27 @@
 
   // ----- Stats actions -----
   actions.statView = function (x) { ui.statView = x; render(); };
-  // Tap a column: sort by it (highest first); tap again to flip; a third tap goes back to jersey order.
+  // Tap a column: highest first; again: lowest first; a third time: back to the default (games played).
   actions.statSort = function (x) {
-    var s = ui.statSort;
-    if (!s || s.k !== x) ui.statSort = { k: x, dir: 'desc' };
+    var s = ui.statSort || { k: 'gp', dir: 'desc' };
+    if (s.k !== x) ui.statSort = { k: x, dir: 'desc' };
     else if (s.dir === 'desc') ui.statSort = { k: x, dir: 'asc' };
     else ui.statSort = null;
     render();
   };
+  // Search: a player or game opens it; a stat opens the right players view sorted by it, or the
+  // sheet that has it, scrolled to the line.
+  actions.sqGo = function (x) {
+    var r = sqResults[+x];
+    if (!r) return;
+    ui.statQ = '';
+    if (r.go) return go(r.go);
+    var st = r.stat, views = window.SBStats.VIEWS;
+    if (views[st[2]]) { ui.statView = st[2]; ui.statSort = { k: st[3], dir: 'desc' }; go('#stats/players'); return; }
+    go('#stats/' + st[2]);
+    if (st[3]) setTimeout(function () { focusStatLabel(st[3]); }, 60);
+  };
+  actions.sqClear = function () { ui.statQ = ''; var i = document.getElementById('stat-q'); if (i) i.value = ''; applyStatSearch(false); };
   actions.printStats = function () {
     var sel = {};
     if (route.name === 'player') sel['player:' + route.id] = true;
@@ -2307,6 +2448,7 @@
       if (nn) nn.textContent = note || 'Entering their numbers now sets up their column before tip-off. You can still add numbers during the game.';
     }
     if (ev.target.getAttribute('data-schedtext')) ui.schedText = ev.target.value;
+    if (ev.target.getAttribute('data-statq')) { ui.statQ = ev.target.value; applyStatSearch(true); }
   });
 
   app.addEventListener('submit', function (ev) {
@@ -2331,6 +2473,17 @@
       render();
       var n = document.getElementById('np-num'); if (n) n.focus();
     }
+  });
+
+  app.addEventListener('keydown', function (ev) {
+    if (!ev.target.getAttribute || !ev.target.getAttribute('data-statq')) return;
+    if (ev.key === 'Enter') { ev.preventDefault(); if (sqResults.length) actions.sqGo('0'); }
+    else if (ev.key === 'Escape') actions.sqClear();
+  });
+  app.addEventListener('focusin', function (ev) { if (ev.target.getAttribute && ev.target.getAttribute('data-statq') && ui.statQ) applyStatSearch(true); });
+  app.addEventListener('focusout', function (ev) {
+    if (!ev.target.getAttribute || !ev.target.getAttribute('data-statq')) return;
+    setTimeout(function () { var b = document.getElementById('sq-res'); if (b && document.activeElement !== ev.target) b.hidden = true; }, 200);
   });
 
   function importBackup(file) {

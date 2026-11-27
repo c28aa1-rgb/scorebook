@@ -72,14 +72,23 @@ started after subs were recorded (Nov 2026 onward); older games show —.
 
 **Stats** (home screen → Stats, or the five links under Season leaders). The **Games** menu limits
 everything to all games, home, away, wins, losses, the last 5 or 10, or scrimmages (which are otherwise
-left out). Tabs:
+left out).
+
+**Search** (the box under the tabs, also on player pages): as you type, a list of matching players, stats
+and games appears. Tap one, or press Enter for the first. A player or game opens it, and a stat opens the
+players view sorted by it (e.g. "free throw" → Shooting, sorted by FT%) or scrolls to it on its sheet
+(e.g. "close games" on Team). Searching for a player or opponent also narrows the lists on the current tab
+to matching rows; **Show all** (or Escape) clears it.
+
+Tabs:
 
 - **Team:** record (home/away, streak, last 5), points for and against, average scoring by quarter,
   margin by game (wins up, losses down), points and shooting percentages game by game,
   shooting (2s, 3s, FTs, effective FG%, true shooting %), where the points come from, possessions and
   points per 100, assists and turnovers, game situations (close games, leading/trailing at half, scored
   first), fouls and free throws, results by opponent, and single-game team highs.
-- **Players:** per game, totals, shooting and advanced views; tap a column to sort. Each view has a chart:
+- **Players:** per game, totals, shooting and advanced views, listed by games played (most first); tap a
+  column to sort by it (again to flip, a third time to go back to games played). Each view has a chart:
   production bars (points, rebounds, assists, steals + blocks), a volume-vs-efficiency scatter, and on/off bars. Advanced has game score,
   share of team points, usage, assist-to-turnover, double-doubles, quarters played, plus/minus and on/off
   court net points per 100 possessions.
