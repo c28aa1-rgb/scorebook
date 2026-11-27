@@ -62,6 +62,8 @@
     '.rpt .c.us.m{background:#EEF1FC}',
     '.rpt .led-key{font-size:0.72rem;color:var(--ink2);margin-top:0.2rem}',
     '.rpt{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    '.rpt .rpt-logo{flex:none;width:3.6rem;height:3.6rem;align-self:center;margin-right:0.2rem}',
+    '.rpt .rpt-title{flex:1;min-width:0}',
     '.rpt .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.4rem,1fr));margin-top:0.9rem;border-top:1px solid var(--rule);border-left:1px solid var(--rule)}',
     '.rpt .kp div{padding:0.45rem 0.6rem;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}',
     '.rpt .kp b{display:block;font-family:"Roboto Condensed","sans-serif-condensed",Bahnschrift,"Arial Narrow",sans-serif;font-size:1.45rem;line-height:1.05}',
@@ -527,7 +529,7 @@
       (game.status === 'final' ? (game.type === 'scrimmage' ? 'Final' : resultWord(c, c.rules)) : 'In progress · ' + C.periodLabel(c.quarter, c.rules));
     var h = [];
     h.push('<article class="rpt">');
-    h.push('<header class="rpt-hd"><div><div class="rpt-eyebrow">' + esc(status) + ' · ' +
+    h.push('<header class="rpt-hd">' + (opts.logo ? '<img class="rpt-logo" src="' + esc(opts.logo) + '" alt="">' : '') + '<div class="rpt-title"><div class="rpt-eyebrow">' + esc(status) + ' · ' +
       (game.homeAway === 'away' ? 'Away' : 'Home') + '</div>');
     h.push('<h1><span class="' + (us > them ? 'win' : '') + '">' + esc(meta.team.name) + ' ' + us +
       '</span><span class="vs">–</span><span class="' + (them > us ? 'win' : '') + '">' + them + ' ' +

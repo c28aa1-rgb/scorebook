@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Render logo</title>
+<style>
+  body { margin: 0; padding: 16px; background: #6b7a80; font: 14px/1.4 Arial, sans-serif; color: #fff; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  figure { margin: 0; text-align: center; }
+  figure canvas { display: block; background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0 / 16px 16px; }
+  figcaption { margin-top: 4px; font-size: 12px; }
+  #status { margin: 12px 0; font-weight: bold; }
+</style>
+</head>
+<body>
+<p>Draws the cleaned-up tiger and the app icons from <code>icons/tiger-source.png</code>: the blue artwork becomes a
+smooth alpha mask at 1024 px (edges sharpened with a soft threshold), then each image is drawn from that mask in the
+team colors. To save them into <code>icons/</code>, run a receiver on port 8099 that accepts these file names
+(see the commit that added this page), then press Save.</p>
+<button id="save">Save to icons/</button>
+<div id="status"></div>
+<div class="row" id="out"></div>
+<script>
+  var BLUE = '#2340C8', WHITE = '#FFFFFF';
+  var OUTPUTS = [
+    // name, size, artwork color, background ('none' | 'circle' | 'square'), background color, artwork scale
+    ['tiger.png', 320, BLUE, 'none', '', 1],
+    ['favicon-64.png', 64, BLUE, 'circle', WHITE, 1],
+    ['icon-192.png', 192, WHITE, 'square', BLUE, 0.84],
+    ['icon-512.png', 512, WHITE, 'square', BLUE, 0.84],
+    ['apple-touch-icon.png', 180, WHITE, 'square', BLUE, 0.84],
+    ['icon-maskable-512.png', 512, WHITE, 'square', BLUE, 0.7]
+  ];
+  var made = {};
+
+  function smoothstep(e0, e1, v) { var t = Math.max(0, Math.min(1, (v - e0) / (e1 - e0))); return t * t * (3 - 2 * t); }
+
+  var img = new Image();
+  img.onload = build;
+  img.src = '../icons/tiger-source.png?' + Date.now();
+
+  function build() {
+    // 1) Upscale the source smoothly to 1024 px on white.
+    var S = 1024, big = document.createElement('canvas');
+    big.width = big.height = S;
+    var g = big.getContext('2d');
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.fillStyle = '#fff'; g.fillRect(0, 0, S, S);
+    g.drawImage(img, 0, 0, S, S);
+    var px = g.getImageData(0, 0, S, S).data, n = S * S, sums = new Float32Array(n), i;
+    for (i = 0; i < n; i++) sums[i] = px[i * 4] + px[i * 4 + 1] + px[i * 4 + 2];
+    // 2) "Ink" = how far from white towards the logo's darkest blue; a soft threshold makes crisp edges.
+    var sorted = Array.prototype.slice.call(sums).sort(function (a, b) { return a - b; }), dark = sorted[Math.floor(n * 0.03)];
+    var alpha = new Uint8ClampedArray(n), minX = S, minY = S, maxX = 0, maxY = 0;
+    for (i = 0; i < n; i++) {
+      var a = Math.round(255 * smoothstep(0.3, 0.62, (765 - sums[i]) / (765 - dark)));
+      alpha[i] = a;
+      if (a > 60) { var x = i % S, y = (i / S) | 0; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+    }
+    // 3) Crop to the artwork, square and centered.
+    var side = Math.max(maxX - minX, maxY - minY) + 8, cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    var crop = { x: cx - side / 2, y: cy - side / 2, s: side };
+    window.MASKINFO = { dark: dark, crop: crop };
+
+    function artwork(color) {
+      var c = document.createElement('canvas'); c.width = c.height = S;
+      var ctx = c.getContext('2d'), d = ctx.createImageData(S, S), r = parseInt(color.slice(1, 3), 16), gg = parseInt(color.slice(3, 5), 16), b = parseInt(color.slice(5, 7), 16);
+      for (var k = 0; k < n; k++) { d.data[k * 4] = r; d.data[k * 4 + 1] = gg; d.data[k * 4 + 2] = b; d.data[k * 4 + 3] = alpha[k]; }
+      ctx.putImageData(d, 0, 0);
+      return c;
+    }
+    var art = { };
+    OUTPUTS.forEach(function (o) {
+      var name = o[0], size = o[1], color = o[2], bg = o[3], bgc = o[4], scale = o[5];
+      var c = document.createElement('canvas'); c.width = c.height = size;
+      var ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      if (bg === 'square') { ctx.fillStyle = bgc; ctx.fillRect(0, 0, size, size); }
+      if (bg === 'circle') { ctx.fillStyle = bgc; ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); ctx.fill(); }
+      var a2 = art[color] || (art[color] = artwork(color)), w = size * scale, off = (size - w) / 2;
+      ctx.drawImage(a2, crop.x, crop.y, crop.s, crop.s, off, off, w, w);
+      made[name] = c;
+      var fig = document.createElement('figure'), cap = document.createElement('figcaption');
+      cap.textContent = name + ' (' + size + ')';
+      c.style.width = Math.max(64, Math.min(size, 256)) + 'px';
+      fig.appendChild(c); fig.appendChild(cap);
+      document.getElementById('out').appendChild(fig);
+    });
+    document.getElementById('status').textContent = 'Ready: ' + OUTPUTS.length + ' images.';
+    window.LOGO_READY = true;
+  }
+
+  document.getElementById('save').onclick = function () { saveAll(); };
+  window.saveAll = function () {
+    var names = Object.keys(made), results = [];
+    return names.reduce(function (p, name) {
+      return p.then(function () {
+        var b64 = made[name].toDataURL('image/png').split(',')[1];
+        return fetch('http://127.0.0.1:8099/' + encodeURIComponent(name), { method: 'POST', body: b64 })
+          .then(function (r) { return r.text(); }).then(function (t) { results.push(name + ': ' + t); });
+      });
+    }, Promise.resolve()).then(function () { document.getElementById('status').textContent = results.join(' · '); return results; });
+  };
+</script>
+</body>
+</html>

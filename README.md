@@ -263,8 +263,9 @@ node tools/serve.js        # http://localhost:8080
 node tests/core.test.js    # stat and rules tests
 node tests/schedule.test.js  # schedule import tests
 node tests/stats.test.js   # season stats tests
-# icons: icons/icon.svg is the source. To regenerate the PNGs, open
-# http://localhost:8080/tools/render-icons.html and save each image into icons/.
+# logo and icons: icons/tiger-source.png is the original tiger. tools/render-logo.html draws the cleaned-up
+# tiger.png (header, launch screen, reports, stat sheets), favicon-64.png and the app icons from it; open
+# http://localhost:8080/tools/render-logo.html, run a receiver on port 8099 for those names, then press Save.
 ```
 
 When you change any app file, bump `VERSION` in `sw.js` so tablets pick up the update. Tablets check for a

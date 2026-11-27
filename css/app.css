@@ -50,29 +50,27 @@ button:disabled { cursor: default; opacity: 0.35; }
   transition: opacity 0.35s ease;
 }
 #splash.done { opacity: 0; pointer-events: none; }
-.sp-logo { width: 34vmin; max-width: 15rem; height: auto; overflow: visible; }
-/* Timeline (about 2.5 s, then a 0.35 s fade): ball 0–0.9 s, cell 0.75–1.2 s, slash 1.2–1.6 s,
-   name 1.4–2 s, hold. app.js fades it at 2.5 s. */
-.sp-ball { transform-box: fill-box; transform-origin: 50% 100%; animation: sp-drop 0.9s cubic-bezier(0.3, 0, 0.6, 1) both; }
-.sp-cell { transform-box: fill-box; transform-origin: 50% 50%; animation: sp-cell 0.45s cubic-bezier(0.2, 1.5, 0.4, 1) 0.75s both; }
-.sp-slash { stroke-dasharray: 1; stroke-dashoffset: 1; animation: sp-draw 0.4s ease-out 1.2s forwards; }
-.sp-word {
-  color: #fff; font-family: var(--f-num); font-weight: 700; font-size: 1.15rem; letter-spacing: 0.5em; padding-left: 0.5em;
-  animation: sp-word 0.6s ease-out 1.4s both;
-}
-@keyframes sp-drop {
-  0% { transform: translateY(-140%) scale(0.85); opacity: 0; }
-  45% { transform: translateY(0) scale(1.06, 0.9); opacity: 1; }
-  65% { transform: translateY(-9%) scale(0.98, 1.02); }
-  82% { transform: translateY(0) scale(1.02, 0.97); }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
-}
-@keyframes sp-cell { from { transform: translate(30%, 30%) scale(0.4); opacity: 0; } to { transform: none; opacity: 1; } }
-@keyframes sp-draw { to { stroke-dashoffset: 0; } }
-@keyframes sp-word { from { opacity: 0; letter-spacing: 0.9em; } to { opacity: 1; letter-spacing: 0.5em; } }
+/* Timeline (about 2.5 s, then a 0.35 s fade): badge 0–0.7 s, tiger 0.35–0.95 s, ring 0.6–1.6 s,
+   light sweep 1.0–1.7 s, name 1.3–1.9 s, hold. app.js fades it at 2.5 s. */
+.sp-mark { position: relative; width: 36vmin; height: 36vmin; max-width: 15rem; max-height: 15rem; }
+.sp-mark:before { content: ""; position: absolute; left: -7%; top: -7%; right: -7%; bottom: -7%; border-radius: 50%; border: 3px solid #4E6AF7;
+  opacity: 0; animation: sp-ring 1s ease-out 0.6s both; }
+.sp-badge { position: relative; width: 100%; height: 100%; border-radius: 50%; background: #fff; overflow: hidden;
+  box-shadow: 0 0 0 0.35rem rgba(35, 64, 200, 0.35); animation: sp-pop 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+.sp-badge img { position: absolute; left: 4%; top: 4%; width: 92%; height: 92%; animation: sp-tiger 0.6s ease-out 0.35s both; }
+.sp-badge:after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 60%; transform: translateX(-180%) skewX(-18deg);
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0)); animation: sp-shine 0.7s ease-in-out 1s both; }
+.sp-word { color: #fff; font-family: var(--f-num); font-weight: 700; font-size: 1.9rem; letter-spacing: 0.32em; padding-left: 0.32em; text-align: center; line-height: 1.1;
+  animation: sp-word 0.6s ease-out 1.3s both; }
+.sp-word small { display: block; font-size: 0.85rem; letter-spacing: 0.62em; padding-left: 0.62em; color: #9DB0FF; margin-top: 0.3rem; }
+@keyframes sp-pop { 0% { transform: scale(0.2); opacity: 0; } 55% { transform: scale(1.07); opacity: 1; } 78% { transform: scale(0.97); } 100% { transform: scale(1); opacity: 1; } }
+@keyframes sp-tiger { from { transform: scale(1.35); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes sp-ring { 0% { transform: scale(0.85); opacity: 0; } 30% { opacity: 0.9; } 100% { transform: scale(1.3); opacity: 0; } }
+@keyframes sp-shine { from { transform: translateX(-180%) skewX(-18deg); } to { transform: translateX(260%) skewX(-18deg); } }
+@keyframes sp-word { from { opacity: 0; transform: translateY(0.6rem); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .sp-ball, .sp-cell, .sp-word { animation: none; }
-  .sp-slash { animation: none; stroke-dashoffset: 0; }
+  .sp-mark:before, .sp-badge, .sp-badge img, .sp-badge:after, .sp-word { animation: none; }
+  .sp-badge:after { display: none; }
 }
 
 /* ---------- Test mode: amber frame round the screen and a small bar at the bottom ---------- */
@@ -839,3 +837,11 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
 .sx-jersey .jy-num { font-family: var(--f-num); font-weight: 700; letter-spacing: -1px; }
 @media print { .sx-hero .sx-jersey { width: 5.6rem; } }
 .pg-hd .back, .pg-hd .btn { flex: none; white-space: nowrap; }
+
+/* Tiger logo: header badge, sign-in screen, stat sheet headers */
+.hd-logo { flex: none; width: 2.8rem; height: 2.8rem; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px rgba(78, 106, 247, 0.55); }
+.hd-logo img { width: 90%; height: 90%; display: block; }
+.gate-logo { display: flex; align-items: center; justify-content: center; width: 7rem; height: 7rem; border-radius: 50%; background: #fff; margin: 0 auto; box-shadow: 0 0 0 4px rgba(35, 64, 200, 0.3); }
+.gate-logo img { width: 90%; height: 90%; display: block; }
+.sx-hd .sx-logo { flex: none; width: 3.2rem; height: 3.2rem; align-self: center; margin-right: 0.4rem; }
+.sx-hd .sx-title { flex: 1; min-width: 0; }

@@ -215,7 +215,8 @@
   function pcs(r) { return r === null || r === undefined ? '—' : pc(r) + '%'; }
 
   function sheet(ctx, title, right, body, cls) {
-    return '<section class="sx' + (cls ? ' ' + cls : '') + '"><header class="sx-hd"><div><div class="sx-eye">' + esc(ctx.teamName) + ' · ' +
+    return '<section class="sx' + (cls ? ' ' + cls : '') + '"><header class="sx-hd">' + (ctx.logo ? '<img class="sx-logo" src="' + esc(ctx.logo) + '" alt="">' : '') +
+      '<div class="sx-title"><div class="sx-eye">' + esc(ctx.teamName) + ' · ' +
       esc(ctx.season) + ' · ' + esc(ctx.filter) + '</div><h1>' + title + '</h1></div><div class="sx-meta">' + (right || '') + '</div></header>' + body + '</section>';
   }
   function h2(t, small) { return '<h2>' + t + (small ? ' <small>' + small + '</small>' : '') + '</h2>'; }

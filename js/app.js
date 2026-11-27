@@ -6,6 +6,13 @@
 (function () {
   'use strict';
   var C = window.SBCore, DB = window.SBDB, R = window.SBReport, esc = R.esc;
+  // The logo as a data URL too, so saved and published reports carry it inside the file.
+  var LOGO = 'icons/tiger.png', logoData = '';
+  try {
+    fetch(LOGO).then(function (r) { return r.blob(); }).then(function (b) {
+      var fr = new FileReader(); fr.onload = function () { logoData = String(fr.result); }; fr.readAsDataURL(b);
+    })['catch'](function () {});
+  } catch (e) {}
   var app = document.getElementById('app');
 
   var meta = null;     // team, seasons, players, opponents, settings
@@ -344,7 +351,7 @@
         '<button class="btn pri gate-google" data-a="signIn">Sign in with Google</button>' +
         (gate.msg ? '<p class="gate-msg">' + esc(gate.msg) + '</p>' : '');
     }
-    app.innerHTML = '<div class="gate"><img src="icons/icon.svg" alt="" width="96" height="96"><h1>' + esc(meta.team.name) + ' Scorebook</h1>' + body + '</div>';
+    app.innerHTML = '<div class="gate"><span class="gate-logo"><img src="' + LOGO + '" alt=""></span><h1>' + esc(meta.team.name) + ' Scorebook</h1>' + body + '</div>';
   }
 
   // After sign-in: follow live changes and merge the cloud copy with this tablet's. The app opens
@@ -541,7 +548,7 @@
     var finals = seasonFinals();
     var s = C.computeSeason(finals, seasonPlayers());
     var h = [];
-    h.push(pageHead(meta.team.name + ' · ' + season.name, '',
+    h.push(pageHead(meta.team.name + ' · ' + season.name, '<span class="hd-logo"><img src="' + LOGO + '" alt=""></span>',
       (fsAvailable() ? '<button class="btn sm" data-a="fullscreen">' + (fsActive() ? 'Exit full screen' : 'Full screen') + '</button>' : '') +
       '<button class="btn sm" data-a="go" data-x="#stats/team">Stats</button>' +
       '<button class="btn sm" data-a="go" data-x="#schedule">Schedule</button>' +
@@ -671,7 +678,7 @@
       name: shortName, jersey: jerseyOf,
       full: function (p) { return ((p.first || '') + ' ' + (p.last || '')).trim() || 'Player'; },
       periodLabel: function (q) { return C.periodLabel(q, rules); },
-      teamColor: meta.team.color, teamShort: meta.team.name
+      teamColor: meta.team.color, teamShort: meta.team.name, logo: LOGO
     };
   }
   // A player no longer on the roster, from a game's roster snapshot.
@@ -1479,7 +1486,7 @@
         : 'You can still reopen or delete this game until ' + ((lh % 12) || 12) + ':' + ('0' + lt.getMinutes()).slice(-2) + (lh < 12 ? ' AM' : ' PM') + '. After that it locks for good.') + '</p>');
     }
     if (g.publishedUrl) h.push('<p class="pub no-print">Published: <b>' + esc(g.publishedUrl) + '</b></p>');
-    h.push('<style>' + R.CSS + '</style><div class="rpt-wrap">' + R.render(g, meta, { names: names }) + '</div>');
+    h.push('<style>' + R.CSS + '</style><div class="rpt-wrap">' + R.render(g, meta, { names: names, logo: LOGO }) + '</div>');
     return h.join('');
   };
 
@@ -2326,7 +2333,7 @@
 
   actions.dlReport = function () {
     var g = gameById(route.id), names = ui.reportNames || meta.settings.names;
-    download(reportFileName(g), R.standalone(g, meta, { names: names }), 'text/html');
+    download(reportFileName(g), R.standalone(g, meta, { names: names, logo: logoData }), 'text/html');
     toast('Report file saved to Downloads.');
   };
 
@@ -2334,7 +2341,7 @@
   // works without Wi-Fi for Bluetooth. The email-style summary goes along as the message text.
   actions.shareReport = function () {
     var g = gameById(route.id), names = ui.reportNames || meta.settings.names;
-    var file = new File([R.standalone(g, meta, { names: names })], reportFileName(g), { type: 'text/html' });
+    var file = new File([R.standalone(g, meta, { names: names, logo: logoData })], reportFileName(g), { type: 'text/html' });
     if (!canShareFiles([file])) { toast('This browser can’t share files. Use Save file instead.'); return; }
     navigator.share({ files: [file], title: R.title(g, meta), text: R.plainText(g, meta, { names: names, url: g.publishedUrl }) })['catch'](function (err) {
       if (err && err.name !== 'AbortError') toast('Couldn’t share the file (' + err.name + '). Use Save file instead.');
@@ -2369,7 +2376,7 @@
     };
     xhr.onerror = xhr.ontimeout = function () { toast('Publish failed: no response from the server.'); };
     toast('Publishing…');
-    xhr.send(R.standalone(g, meta, { names: names }));
+    xhr.send(R.standalone(g, meta, { names: names, logo: logoData }));
   };
 
   actions.deleteGame = function () {
