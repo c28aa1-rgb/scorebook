@@ -47,21 +47,21 @@ button:disabled { cursor: default; opacity: 0.35; }
 #splash {
   position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 50; background: var(--ink);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.4rem;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.5s ease;
 }
 #splash.done { opacity: 0; pointer-events: none; }
-/* Timeline (about 2.5 s, then a 0.35 s fade): badge 0–0.7 s, tiger 0.35–0.95 s, ring 0.6–1.6 s,
-   light sweep 1.0–1.7 s, name 1.3–1.9 s, hold. app.js fades it at 2.5 s. */
+/* Timeline (about 4 s, then a 0.5 s fade): badge 0.1–1.1 s, tiger 0.5–1.5 s, ring 1.1–2.4 s,
+   light sweep 1.7–2.6 s, name 2.0–2.8 s, then the full logo holds. app.js fades it at 4 s. */
 .sp-mark { position: relative; width: 36vmin; height: 36vmin; max-width: 15rem; max-height: 15rem; }
 .sp-mark:before { content: ""; position: absolute; left: -7%; top: -7%; right: -7%; bottom: -7%; border-radius: 50%; border: 3px solid #4E6AF7;
-  opacity: 0; animation: sp-ring 1s ease-out 0.6s both; }
+  opacity: 0; animation: sp-ring 1.3s ease-out 1.1s both; }
 .sp-badge { position: relative; width: 100%; height: 100%; border-radius: 50%; background: #fff; overflow: hidden;
-  box-shadow: 0 0 0 0.35rem rgba(35, 64, 200, 0.35); animation: sp-pop 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
-.sp-badge img { position: absolute; left: 4%; top: 4%; width: 92%; height: 92%; animation: sp-tiger 0.6s ease-out 0.35s both; }
+  box-shadow: 0 0 0 0.35rem rgba(35, 64, 200, 0.35); animation: sp-pop 1s cubic-bezier(0.2, 1.4, 0.4, 1) 0.1s both; }
+.sp-badge img { position: absolute; left: 4%; top: 4%; width: 92%; height: 92%; animation: sp-tiger 1s cubic-bezier(0.2, 0.9, 0.3, 1) 0.5s both; }
 .sp-badge:after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 60%; transform: translateX(-180%) skewX(-18deg);
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0)); animation: sp-shine 0.7s ease-in-out 1s both; }
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0)); animation: sp-shine 0.9s ease-in-out 1.7s both; }
 .sp-word { color: #fff; font-family: var(--f-num); font-weight: 700; font-size: 1.9rem; letter-spacing: 0.32em; padding-left: 0.32em; text-align: center; line-height: 1.1;
-  animation: sp-word 0.6s ease-out 1.3s both; }
+  animation: sp-word 0.8s ease-out 2s both; }
 .sp-word small { display: block; font-size: 0.85rem; letter-spacing: 0.62em; padding-left: 0.62em; color: #9DB0FF; margin-top: 0.3rem; }
 @keyframes sp-pop { 0% { transform: scale(0.2); opacity: 0; } 55% { transform: scale(1.07); opacity: 1; } 78% { transform: scale(0.97); } 100% { transform: scale(1); opacity: 1; } }
 @keyframes sp-tiger { from { transform: scale(1.35); opacity: 0; } to { transform: scale(1); opacity: 1; } }

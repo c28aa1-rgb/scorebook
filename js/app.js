@@ -253,7 +253,7 @@
     };
   }
 
-  // The launch animation plays for about 2.5 seconds from page load (none if motion is reduced),
+  // The launch animation plays for about 4 seconds from page load (none if motion is reduced),
   // then fades; if loading takes longer, it stays until the app is ready.
   function hideSplash() {
     var s = document.getElementById('splash');
@@ -262,8 +262,8 @@
     var since = window.performance && performance.now ? performance.now() : 0;
     setTimeout(function () {
       s.className = 'done';
-      setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 400);
-    }, reduce ? 0 : Math.max(0, 2500 - since));
+      setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 550);
+    }, reduce ? 0 : Math.max(0, 4000 - since));
   }
 
   // Reloading or closing mid-game asks first (an accidental pull-to-refresh or reload button tap).
