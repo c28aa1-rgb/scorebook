@@ -80,8 +80,11 @@
     delete meta.fresh;
     meta.updated = Date.now();
     DB.saveMeta(meta, function (err) { if (err) toast('Could not save. Storage may be full.'); });
-    if (syncing) Cloud.pushMeta(meta);
+    // Sent to the cloud only once this session has read the server's copy and while online; until then
+    // the change waits here and is merged in (not sent blind) by the next catch-up.
+    if (syncing && pulledNow && navigator.onLine) Cloud.pushMeta(meta);
   }
+  var pulledNow = false;
   // Remembers a deleted roster or schedule entry (see SBCore.mergeMeta).
   function markGone(id) { if (id) { meta.gone = meta.gone || {}; meta.gone[id] = Date.now(); } }
 
@@ -92,6 +95,12 @@
     DB.saveGame(g, function (err) { if (err) toast('Could not save game. Storage may be full.'); });
     if (syncing) Cloud.pushGame(g);
   }
+  // Finished games lock an hour after they end (the database enforces the same rule): they can't be
+  // reopened, changed or deleted from any tablet after that. Only the database owner can.
+  var LOCK_AFTER = 60 * 60 * 1000;
+  function lockAt(g) { return (g.ended || 0) + LOCK_AFTER; }
+  function gameLocked(g) { return !!g && g.status === 'final' && Date.now() >= lockAt(g); }
+
   function removeGame(id) {
     if (testMode) return;
     DB.deleteGame(id);
@@ -344,6 +353,8 @@
   function startSync(cb) {
     syncing = true;
     listenCloud();
+    // Going offline means the next save waits for a fresh read of the server's copy.
+    window.addEventListener('offline', function () { pulledNow = false; catchUpLater(); });
     var opened = false;
     function open() { if (!opened) { opened = true; cb(); } }
     if (!navigator.onLine) { catchUpLater(); open(); return; }
@@ -373,13 +384,17 @@
   function mergeWithCloud(done) {
     Cloud.pull(function (err, remote) {
       if (err || testMode) { done(!err); return; }
+      pulledNow = true;
       takeMerged(C.mergeMeta(meta, remote.meta));
       var byId = {};
       remote.games.forEach(function (rg) { byId[rg.id] = rg; });
       games = games.filter(function (g) {
         var rg = byId[g.id];
         if (!rg) {
-          if (g.synced) { DB.deleteGame(g.id); return false; }
+          // Missing from the server: deleted on another tablet, unless it's a finished game, which is
+          // never removed by a sync (it stays on this tablet).
+          if (g.synced && g.status !== 'final') { DB.deleteGame(g.id); return false; }
+          if (g.synced) return true;
           g.synced = true; DB.saveGame(g, function () {}); Cloud.pushGame(g);
           return true;
         }
@@ -401,7 +416,8 @@
       var lg = gameById(rg.id);
       if (!lg || (rg.updated || 0) > (lg.updated || 0)) { takeRemoteGame(rg); refresh(); }
     }, function (id) {
-      if (testMode || !gameById(id)) return;
+      var gone = gameById(id);
+      if (testMode || !gone || gone.status === 'final') return;
       games = games.filter(function (g) { return g.id !== id; });
       DB.deleteGame(id);
       if (route.id === id) go('#home'); else refresh();
@@ -1312,16 +1328,23 @@
       '<button data-a="repNames" data-x="first" class="' + (names === 'first' ? 'on' : '') + '">First name</button>' +
       '<button data-a="repNames" data-x="full" class="' + (names === 'full' ? 'on' : '') + '">Full name</button></div>');
     h.push('<span class="sp"></span>');
-    h.push('<button class="btn sm danger' + (ui.armed === 'del' + g.id ? ' armed' : '') + '" data-a="deleteGame">' +
+    var locked = gameLocked(g);
+    if (locked) h.push('<span class="lock-tag" title="Finished games can only be changed or deleted in the database">Locked</span>');
+    else h.push('<button class="btn sm danger' + (ui.armed === 'del' + g.id ? ' armed' : '') + '" data-a="deleteGame">' +
       (ui.armed === 'del' + g.id ? 'Confirm delete' : 'Delete game') + '</button>');
     if (live) h.push('<button class="btn sm pri" data-a="go" data-x="#game/' + g.id + '">Back to game</button>');
-    else h.push('<button class="btn sm ghost" data-a="reopen">Reopen game</button>');
+    else if (!locked) h.push('<button class="btn sm ghost" data-a="reopen">Reopen game</button>');
     h.push('<button class="btn sm" data-a="print">Print</button>');
     h.push('<button class="btn sm" data-a="dlReport">Save file</button>');
     if (SHARE_FILES) h.push('<button class="btn sm" data-a="shareReport">Share file</button>');
     h.push('<button class="btn sm" data-a="publish">' + (g.publishedUrl ? 'Update link' : 'Publish link') + '</button>');
     h.push('<button class="btn sm pri" data-a="email">Email</button>');
     h.push('</div>');
+    if (!live) {
+      var lt = new Date(lockAt(g)), lh = lt.getHours();
+      h.push('<p class="pub no-print">' + (locked ? 'This game is locked: finished games can’t be reopened, changed or deleted from any tablet, so nothing can wipe them by accident. A correction has to be made in the database.'
+        : 'You can still reopen or delete this game until ' + ((lh % 12) || 12) + ':' + ('0' + lt.getMinutes()).slice(-2) + (lh < 12 ? ' AM' : ' PM') + '. After that it locks for good.') + '</p>');
+    }
     if (g.publishedUrl) h.push('<p class="pub no-print">Published: <b>' + esc(g.publishedUrl) + '</b></p>');
     h.push('<style>' + R.CSS + '</style><div class="rpt-wrap">' + R.render(g, meta, { names: names }) + '</div>');
     return h.join('');
@@ -1437,6 +1460,22 @@
         ' Every change is saved to the cloud, so signing in on another tablet shows the same games.</p>' +
         '<div class="form"><button class="btn danger' + (ui.armed === 'signout' ? ' armed' : '') + '" data-a="signOut">' +
         (ui.armed === 'signout' ? 'Confirm sign out' : 'Sign out') + '</button></div>');
+    }
+    if (syncing) {
+      h.push('<h2>Automatic backups</h2><p class="note">The cloud keeps a copy of the roster, schedule, seasons and settings every hour there are changes, plus one from the start of each day. ' +
+        'Restoring one puts it back on every tablet; games aren’t affected.</p>');
+      var hs = ui.history;
+      if (!hs) h.push('<div class="form"><button class="btn" data-a="loadHistory">Show automatic backups</button></div>');
+      else if (hs === 'loading') h.push('<p class="note">Loading…</p>');
+      else if (hs.error) h.push('<p class="note">Couldn’t load them: ' + esc(hs.error) + ' Is the tablet online?</p>');
+      else if (!hs.length) h.push('<p class="note">None yet. The first one is made the next time something changes.</p>');
+      else h.push('<ul class="games hist">' + hs.map(function (x, i) {
+        var m = x.meta || {}, sid = m.currentSeasonId, armed = ui.armed === 'hist' + i;
+        var np = (m.players || []).filter(function (p) { return p.seasonId === sid; }).length, ns = (m.schedule || []).filter(function (s) { return s.seasonId === sid; }).length;
+        return '<li class="sch-row"><span class="sch-when"><b>' + esc(histWhen(x)) + '</b><small>' + (x.id.indexOf('day-') === 0 ? 'Start of day' : 'Hourly') + '</small></span>' +
+          '<span class="op">' + np + ' player' + (np === 1 ? '' : 's') + ' · ' + ns + ' scheduled game' + (ns === 1 ? '' : 's') + '</span>' +
+          '<button class="btn sm' + (armed ? ' danger armed' : '') + '" data-a="restoreHistory" data-x="' + i + '">' + (armed ? 'Confirm restore' : 'Restore') + '</button></li>';
+      }).join('') + '</ul>');
     }
     h.push('<h2>Backup</h2><p class="note">' + (syncing ? 'The cloud copy is your main backup. A backup file is an extra copy you can keep yourself.'
       : 'Everything is stored on this tablet. Save a backup after each game in case the browser data is cleared.') + '</p>' +
@@ -1704,6 +1743,7 @@
 
   actions.reopen = function () {
     var g = gameById(route.id);
+    if (gameLocked(g)) { toast('This game is locked. Finished games can only be changed in the database.'); return; }
     g.status = 'live';
     saveGame(g);
     go('#game/' + g.id);
@@ -2033,6 +2073,33 @@
   };
   actions.signInOther = function () { Cloud.signOut().then(function () { actions.signIn(); }); };
   actions.reload = function () { reloadNow(); };
+
+  // Automatic backups (cloud snapshots of the record).
+  function histWhen(x) {
+    var d = new Date(x.at || 0), day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+    var hr = d.getHours(), mn = d.getMinutes();
+    return day + ' ' + R.fmtDate(d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2)).replace(/, \d{4}$/, '') + ', ' +
+      ((hr % 12) || 12) + ':' + ('0' + mn).slice(-2) + (hr < 12 ? ' AM' : ' PM');
+  }
+  actions.loadHistory = function () {
+    ui.history = 'loading'; render();
+    Cloud.listHistory(function (err, list) { ui.history = err ? { error: err.message || String(err) } : list; render(); });
+  };
+  actions.restoreHistory = function (x) {
+    var snap = ui.history && ui.history[+x];
+    if (!snap || !snap.meta) return;
+    if (ui.armed !== 'hist' + x) { ui.armed = 'hist' + x; return render(); }
+    ui.armed = null;
+    if (!navigator.onLine || !pulledNow) { toast('Connect to the internet first, then try again.'); return render(); }
+    meta = JSON.parse(JSON.stringify(snap.meta));
+    meta.schedule = meta.schedule || [];
+    meta.gen = Date.now();   // replaces (not merges) on every tablet
+    saveMeta();
+    applyTheme();
+    ui.history = null;
+    toast('Restored the roster, schedule and settings from ' + histWhen(snap) + '.', 5000);
+    render();
+  };
   actions.signOut = function () {
     if (ui.armed !== 'signout') { ui.armed = 'signout'; return render(); }
     ui.armed = null;
@@ -2147,6 +2214,7 @@
 
   actions.deleteGame = function () {
     var g = gameById(route.id);
+    if (gameLocked(g)) { toast('This game is locked. Finished games can only be deleted in the database.'); return; }
     if (ui.armed !== 'del' + g.id) { ui.armed = 'del' + g.id; return render(); }
     ui.armed = null;
     games = games.filter(function (x) { return x.id !== g.id; });
@@ -2156,7 +2224,7 @@
   };
 
   // ---------- event wiring ----------
-  var TWO_TAP = { rmEvent: 1, rmPlayer: 1, removeSample: 1, deleteGame: 1, rmSched: 1, signOut: 1 };
+  var TWO_TAP = { rmEvent: 1, rmPlayer: 1, removeSample: 1, deleteGame: 1, rmSched: 1, signOut: 1, restoreHistory: 1 };
   function closest(el, attr) {
     while (el && el !== document) { if (el.getAttribute && el.getAttribute(attr) !== null) return el; el = el.parentNode; }
     return null;

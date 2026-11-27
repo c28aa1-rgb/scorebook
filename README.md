@@ -193,8 +193,24 @@ item by item, so a tablet with an older copy adds what it has instead of replaci
 deletions are remembered so they don't come back. Single settings take the newest change. A tablet with
 nothing saved yet always takes the cloud's copy on its first sign-in (before v33 a brand-new tablet or
 browser could replace the cloud copy with a blank one). **Restore from backup** replaces the record on every
-tablet. Each save also keeps an hourly snapshot in `books/dalton/history` for recovery, and a tablet keeps
-its previous copy in `localStorage` (`sb-meta-before-sync`) whenever a sync shrinks its roster or schedule.
+tablet. A tablet only sends the record after it has read the server's copy in that session, and not
+while offline (offline changes are merged in when it reconnects).
+
+**Safeguards (since v34):**
+
+- **Automatic backups:** every save keeps an hourly snapshot of the roster, schedule, seasons and settings
+  in `books/dalton/history`, plus one from the start of each day that isn't overwritten that day. Settings
+  → **Automatic backups** lists them; **Restore** (two taps) puts one back on every tablet. Games aren't
+  part of these snapshots (each game is its own record and is protected by the lock below). A tablet also
+  keeps its previous copy in `localStorage` (`sb-meta-before-sync`) whenever a sync shrinks its roster or
+  schedule.
+- **Database rules** (`firestore.rules`): a save can't remove more than 5 players or 5 scheduled games at
+  once, or empty either list, unless it's a restore. The book can't be deleted, and backups can't be deleted
+  from the app.
+- **Finished games lock** one hour after **End game**: no tablet can reopen, change or delete them after
+  that (publishing the report link still works), and a sync never removes a finished game from a tablet.
+  Until then the report shows when it locks. Corrections after that are made in the Firebase console (or
+  with the admin API), which the rules don't apply to.
 
 The Firebase project is **daltrillion-admin** (shared with Daltrillion, which doesn't use Firestore; the
 scorebook is its own web app there, "Dalton Scorebook"). Google sign-in is enabled and

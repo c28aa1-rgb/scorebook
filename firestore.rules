@@ -15,11 +15,43 @@ service cloud.firestore {
     match /access/{address} {
       allow read: if request.auth != null && request.auth.token.email_verified == true && email() == address;
     }
-    match /books/{book} {
-      allow read, write: if allowed();
+    // The scorebook record (roster, schedule, seasons, settings) can't be wiped by one save:
+    // at most 5 players or 5 scheduled games removed at a time, and never down to none, unless the
+    // save is a restore from backup (a higher meta.gen). The book itself can't be deleted.
+    function count(d, k) { return d.meta.get(k, []).size(); }
+    function gen(d) { return d.meta.get('gen', 0); }
+    function keeps(k) {
+      return count(request.resource.data, k) >= count(resource.data, k) - 5
+        && (count(request.resource.data, k) > 0 || count(resource.data, k) == 0);
     }
-    match /books/{book}/{rest=**} {
-      allow read, write: if allowed();
+    function keepsRecord() {
+      return !('meta' in resource.data)
+        || gen(request.resource.data) > gen(resource.data)
+        || (keeps('players') && keeps('schedule'));
+    }
+    match /books/{book} {
+      allow read, create: if allowed();
+      allow update: if allowed() && ('meta' in request.resource.data) && keepsRecord();
+    }
+    // Games. A finished game locks an hour after it ends (game.ended, in ms): after that no tablet can
+    // change or delete it, except to record its published report link. Only the project owner can
+    // (console or admin API, which these rules don't apply to).
+    function lockedGame() {
+      return resource != null && ('game' in resource.data)
+        && resource.data.game.get('status', '') == 'final'
+        && request.time.toMillis() >= resource.data.game.get('ended', 0) + 3600000;
+    }
+    function onlyPublishing() {
+      return request.resource.data.game.diff(resource.data.game).affectedKeys().hasOnly(['publishedUrl', 'publishId', 'updated', 'synced']);
+    }
+    match /books/{book}/games/{id} {
+      allow read, create: if allowed();
+      allow update: if allowed() && (!lockedGame() || onlyPublishing());
+      allow delete: if allowed() && !lockedGame();
+    }
+    // Automatic backups of the record: tablets can add and refresh them, never delete them.
+    match /books/{book}/history/{id} {
+      allow read, create, update: if allowed();
     }
   }
 }

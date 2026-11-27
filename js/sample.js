@@ -158,7 +158,7 @@
       g.events.push({ s: ++g.seq, q: 3, tm: 'them', p: '', t: 'timeout', v: 'full' });
       g.events.push({ s: ++g.seq, q: 4, tm: 'us', p: '', t: 'timeout', v: 'short' });
       g.events.sort(function (a, b) { return a.q - b.q || a.s - b.s; });
-      g.quarter = 4; g.status = 'final'; g.ended = Date.now(); g.created = Date.now() + x[0];
+      g.quarter = 4; g.status = 'final'; g.ended = Date.now() + x[0] * 864e5; g.created = Date.now() + x[0];
       return g;
     });
 

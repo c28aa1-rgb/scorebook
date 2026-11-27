@@ -788,3 +788,4 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
 .sx-ldr li:first-child .lbar { opacity: 0.8; }
 @media print { .sx-mbars, .sx-mult, .sx-div, .sx-svg { break-inside: avoid; } }
 .sx-key { margin-bottom: 0.3rem; }
+.lock-tag { display: inline-flex; align-items: center; min-height: 2.5rem; padding: 0 0.8rem; border: 2px solid var(--ledger); border-radius: 0.375rem; color: var(--ledger); font-weight: 700; font-size: 0.85rem; }

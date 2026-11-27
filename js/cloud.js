@@ -121,7 +121,12 @@
       var doc = { meta: clean(meta), updated: meta.updated || Date.now() };
       track(book.set(doc));
       if ((meta.players || []).length || (meta.schedule || []).length) {
-        book.collection('history').doc('meta-' + new Date().toISOString().slice(0, 13)).set(doc)['catch'](function () {});
+        var hist = book.collection('history'), stamp = new Date().toISOString();
+        hist.doc('meta-' + stamp.slice(0, 13)).set(doc)['catch'](function () {});
+        // The day's first save also makes a daily snapshot, never overwritten that day (the state
+        // before the day's changes).
+        var day = hist.doc('day-' + stamp.slice(0, 10));
+        day.get({ source: 'server' }).then(function (d) { if (!d.exists) return day.set(doc); })['catch'](function () {});
       }
     });
   }
@@ -142,6 +147,15 @@
     Promise.all([book.get(server), book.collection('games').get(server)]).then(function (r) {
       var meta = r[0].exists ? r[0].data().meta : null;
       cb(null, { meta: meta, games: r[1].docs.map(function (d) { return d.data().game; }) });
+    }, function (e) { cb(e); });
+  }
+
+  // Snapshots of the record (hourly and daily), newest first: cb(err, [{ id, at, meta }]).
+  function listHistory(cb) {
+    book.collection('history').get({ source: 'server' }).then(function (q) {
+      var out = q.docs.map(function (d) { var x = d.data(); return { id: d.id, at: x.updated || 0, meta: x.meta }; });
+      out.sort(function (a, b) { return b.id.slice(5) < a.id.slice(5) ? -1 : b.id.slice(5) > a.id.slice(5) ? 1 : a.id < b.id ? -1 : 1; });
+      cb(null, out.slice(0, 60));
     }, function (e) { cb(e); });
   }
 
@@ -176,6 +190,6 @@
     configured: configured, checkAccess: checkAccess, load: load, onAuth: onAuth, signIn: signIn, signOut: signOut,
     takeRedirectError: takeRedirectError,
     currentUser: currentUser, status: status, onStatus: onStatus, pushMeta: pushMeta, pushGame: pushGame,
-    removeGame: removeGame, pull: pull, listen: listen, replaceAll: replaceAll
+    removeGame: removeGame, pull: pull, listen: listen, replaceAll: replaceAll, listHistory: listHistory
   };
 })(this);
