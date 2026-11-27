@@ -68,6 +68,14 @@
     '.rpt .kp span{display:block;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--ledger);font-weight:700;margin-top:0.1rem}',
     '.rpt .kp small{display:block;font-size:0.7rem;color:var(--ink2)}',
     '.rpt .mchart{display:block;width:100%;height:auto;margin-top:0.2rem}',
+    '.rpt .mwrap{position:relative;cursor:crosshair;-webkit-user-select:none;user-select:none}',
+    '.rpt .mguide{stroke:var(--ink);stroke-width:1.2;stroke-dasharray:3 3}',
+    '.rpt .mdot{fill:#fff;stroke:var(--ink);stroke-width:2.5}',
+    '.rpt .mtip{display:none;position:absolute;top:-0.4rem;transform:translate(-50%,-100%);pointer-events:none;background:var(--ink);color:#fff;border-radius:0.4rem;padding:0.35rem 0.6rem;white-space:nowrap;font-size:0.75rem;line-height:1.3;text-align:center;box-shadow:0 4px 12px rgba(16,24,32,0.25)}',
+    '.rpt .mtip span{display:block;font-size:0.62rem;letter-spacing:0.1em;color:#9FB4B0;font-weight:700}',
+    '.rpt .mtip b{display:block;font-size:0.95rem;font-family:"Roboto Condensed",Bahnschrift,sans-serif}',
+    '.rpt .mtip em{display:block;font-style:normal;font-weight:700;font-size:0.85rem}.rpt .mtip em.u{color:#9DB0FF}.rpt .mtip em.t{color:#FF9C9C}',
+    '.rpt .mtip small{display:block;color:#C9D6D3;font-size:0.7rem}',
     '.rpt .mchart .grid{stroke:#DDE6E4;stroke-width:1}',
     '.rpt .mchart .zero{stroke:var(--ink);stroke-width:1.5}',
     '.rpt .mchart .per{stroke:var(--ledger);stroke-width:1.5;stroke-dasharray:3 3}',
@@ -102,6 +110,7 @@
     '@media print{@page{size:letter;margin:0.45in}',
     ' .rpt{max-width:none;padding:0;font-size:9.5pt}',
     ' .rpt .c.us.m{background:none}',
+    ' .rpt .mtip,.rpt .mguide,.rpt .mdot{display:none!important}',
     ' .rpt h2{break-after:avoid}',
     ' .rpt table,.rpt .led-blk,.rpt .mchart,.rpt .rpt-grid>div,.rpt .kp{break-inside:avoid}}'
   ].join('\n');
@@ -368,10 +377,45 @@
 
   // Score margin over the game: above the line = we led, below = they led. The x axis is play order
   // (there's no clock), with a divider where each period starts.
-  function marginChart(game, meta, c) {
+  // Hover (mouse) or touch-and-drag (finger) on a margin chart: a guide line and dot follow, with the
+  // score, margin and the basket at that point. Self-contained, so the saved/published file can run it too.
+  function bindMargin(root) {
+    var wraps = (root || document).querySelectorAll('.mwrap');
+    for (var k = 0; k < wraps.length; k++) (function (w) {
+      if (w.getAttribute('data-bound')) return;
+      w.setAttribute('data-bound', '1');
+      var svg = w.querySelector('svg'), tip = w.querySelector('.mtip'), guide = w.querySelector('.mguide'), dot = w.querySelector('.mdot');
+      var d = JSON.parse(w.getAttribute('data-m')), steps = d.s, Wd = d.w, L = d.l, R = d.r, T = d.t, B = d.b, H = d.h, n = d.n, lim = d.lim;
+      function x(i) { return L + i / n * (Wd - L - R); }
+      function y(m) { return T + (lim - m) / (2 * lim) * (H - T - B); }
+      function show(clientX) {
+        var r = svg.getBoundingClientRect(), vx = (clientX - r.left) / r.width * Wd, i = (vx - L) / (Wd - L - R) * n, cur = null;
+        for (var j = 0; j < steps.length; j++) { if (steps[j][0] <= i) cur = steps[j]; else break; }
+        var at = cur ? cur[0] : 0, us = cur ? cur[1] : 0, th = cur ? cur[2] : 0, m = us - th;
+        guide.setAttribute('x1', x(at)); guide.setAttribute('x2', x(at)); dot.setAttribute('cx', x(at)); dot.setAttribute('cy', y(m));
+        guide.style.display = dot.style.display = '';
+        tip.innerHTML = '<span>' + (cur ? cur[3] : d.q0) + '</span><b>' + d.us + ' ' + us + '–' + th + ' ' + d.them + '</b>' +
+          '<em class="' + (m > 0 ? 'u' : m < 0 ? 't' : '') + '">' + (m > 0 ? d.us + ' +' + m : m < 0 ? d.them + ' +' + (-m) : 'Tied') + '</em>' +
+          (cur && cur[4] ? '<small>' + cur[4] + '</small>' : '<small>Before the first basket</small>');
+        tip.style.display = 'block';
+        var px = x(at) / Wd * r.width, half = tip.offsetWidth / 2;
+        tip.style.left = Math.max(half, Math.min(r.width - half, px)) + 'px';
+      }
+      function hide() { tip.style.display = 'none'; guide.style.display = dot.style.display = 'none'; }
+      var touching = false;
+      w.addEventListener('mousemove', function (e) { if (!touching) show(e.clientX); });
+      w.addEventListener('mouseleave', hide);
+      w.addEventListener('touchstart', function (e) { touching = true; show(e.touches[0].clientX); }, { passive: true });
+      w.addEventListener('touchmove', function (e) { show(e.touches[0].clientX); }, { passive: true });
+      document.addEventListener('touchstart', function (e) { if (!w.contains(e.target)) { touching = false; hide(); } }, { passive: true });
+    })(wraps[k]);
+  }
+
+  function marginChart(game, meta, c, names) {
     var ev = (game.events || []).filter(function (e) { return e.t !== 'sub' && e.t !== 'timeout'; }), n = ev.length;
     if (!n || !(c.score.us + c.score.them)) return '';
-    var us = 0, th = 0, pts = [[0, 0]], starts = [], seenQ = {}, top = 0, low = 0;
+    var us = 0, th = 0, pts = [[0, 0]], starts = [], seenQ = {}, top = 0, low = 0, steps = [];
+    var what = { 1: 'free throw', 2: '2-pointer', 3: '3-pointer' };
     ev.forEach(function (e, i) {
       if (!seenQ[e.q]) { seenQ[e.q] = true; starts.push([e.q, i]); }
       var p = C.points(e);
@@ -379,6 +423,9 @@
       pts.push([i + 0.5, us - th]);
       if (e.tm === 'us') us += p; else th += p;
       pts.push([i + 0.5, us - th]);
+      var who = e.tm === 'us' ? (function (pl) { return pl ? (hashNum(pl) + playerName(pl, names)).trim() : ''; })(findPlayer(game, meta, e.p)) || meta.team.name
+        : oppName(game) + (e.p ? ' #' + e.p : '');
+      steps.push([i + 0.5, us, th, C.periodLabel(e.q, c.rules), esc(who) + ' · ' + (e.t === 'award' ? (p === 1 ? 'shooting-foul point' : p + ' shooting-foul points') : what[p] || p + ' pts')]);
       top = Math.max(top, us - th); low = Math.min(low, us - th);
     });
     pts.push([n, us - th]);
@@ -405,12 +452,14 @@
     });
     s.push('<path d="' + area + '" class="fa" clip-path="url(#' + id + 'a)"/><path d="' + area + '" class="fb" clip-path="url(#' + id + 'b)"/>');
     s.push('<path d="' + line + '" class="ln"/>');
+    s.push('<line class="mguide" x1="0" x2="0" y1="' + T + '" y2="' + (H - B) + '" style="display:none"/><circle class="mdot" r="5" cx="0" cy="0" style="display:none"/>');
     s.push('<text x="' + (L + 6) + '" y="' + (T + 13) + '" class="tl us">' + esc(meta.team.name) + ' ahead</text>');
     s.push('<text x="' + (L + 6) + '" y="' + (H - B - 6) + '" class="tl th">' + esc(oppName(game)) + ' ahead</text>');
     s.push('</svg>');
     var f = C.gameFlow(game.events || []);
-    return s.join('') + '<p class="key">Biggest lead: ' + esc(meta.team.name) + ' ' + f.biggestLead.us + ', ' + esc(oppName(game)) + ' ' + f.biggestLead.them +
-      ' · lead changes: ' + f.leadChanges + ' · times tied: ' + f.ties + '. Plays run left to right (no clock), so a long stretch means lots of plays, not lots of time.</p>';
+    var data = { s: steps, w: W, l: L, r: R, t: T, b: B, h: H, n: n, lim: lim, us: esc(meta.team.name), them: esc(oppName(game)), q0: C.periodLabel(1, c.rules) };
+    return '<div class="mwrap" data-m="' + esc(JSON.stringify(data)) + '">' + s.join('') + '<div class="mtip"></div></div><p class="key">Biggest lead: ' + esc(meta.team.name) + ' ' + f.biggestLead.us + ', ' + esc(oppName(game)) + ' ' + f.biggestLead.them +
+      ' · lead changes: ' + f.leadChanges + ' · times tied: ' + f.ties + '. Hover over the chart, or touch and slide along it, to see the score at any point. Plays run left to right (no clock), so a long stretch means lots of plays, not lots of time.</p>';
   }
 
   // Head-to-head bars: ours grow left from the middle, theirs grow right.
@@ -487,7 +536,7 @@
     h.push(glance(game, meta, c));
     h.push('<h2>Score by period</h2>' + lineScore(game, meta, c));
     if (c.rules.scoreResets) h.push('<p class="pw">' + esc(periodsWonText(game, meta, c)) + '</p>');
-    var mc = marginChart(game, meta, c);
+    var mc = marginChart(game, meta, c, names);
     if (mc) h.push('<h2>Score margin</h2>' + mc);
     h.push('<h2>' + esc(meta.team.name) + '</h2>' + ourBox(game, meta, c, names));
     var ourRows = boxPlayers(game, meta, c).map(function (r) { return { l: r.line, label: '<span class="jn">' + esc(r.num) + '</span>' + esc(playerName(r.p, names === 'jersey' ? 'first' : names)) }; });
@@ -523,7 +572,7 @@
       '<title>' + esc(title(game, meta)) + '</title>' +
       '<style>body{margin:0;background:#F4F7F6}' + CSS.replace('--accent:#2340C8', '--accent:' + (meta.team.color || '#2340C8')) +
       '@media screen{.rpt{margin:1rem auto;border:1px solid #C7D5D1}}</style></head><body>' +
-      render(game, meta, opts) + '</body></html>';
+      render(game, meta, opts) + '<script>(' + bindMargin.toString() + ')(document);</script></body></html>';
   }
 
   function plainText(game, meta, opts) {
@@ -559,6 +608,7 @@
 
   root.SBReport = {
     CSS: CSS,
+    bindCharts: bindMargin,
     render: render,
     standalone: standalone,
     plainText: plainText,

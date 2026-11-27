@@ -52,7 +52,8 @@ working on that device.
 ## After the game
 
 The report has the key team numbers at a glance, the line score, a score-margin chart (who led and by
-how much through the game, with period dividers), the full box score, head-to-head bars, who scored (2s,
+how much through the game, with period dividers; hover over it, or touch and slide along it, to see the
+score, margin and basket at any point), the full box score, head-to-head bars, who scored (2s,
 3s and free throws for both teams), the opponent box score, the lineups used with their plus/minus, game
 flow (top performer, lead changes, runs, timeouts) and a running-score grid like the paper book. The charts
 are plain HTML/SVG, so they also show in the saved file, the published link and print.

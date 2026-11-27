@@ -484,6 +484,7 @@
     // No pull-to-refresh on the live screen, where a downward swipe is easy to make by accident.
     document.documentElement.classList.toggle('in-game', route.name === 'game');
     if (route.name === 'stats' || route.name === 'player') applyStatSearch(false);
+    if (route.name === 'report' && R.bindCharts) R.bindCharts(app);
     if (route.name === 'game' && ui.flash) {
       var el = app.querySelector('[data-flash="1"]');
       ui.flash = null;
