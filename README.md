@@ -188,6 +188,14 @@ then to Firestore, so scoring never waits on the network; changes made offline u
 back online, and signing in on another tablet shows the same games. Settings → **Account and sync** shows
 the account, the sync state and **Sign out**. Backup files still work as an extra copy.
 
+How the roster, schedule, seasons and settings sync (since v33): copies from different tablets are merged
+item by item, so a tablet with an older copy adds what it has instead of replacing everything, and
+deletions are remembered so they don't come back. Single settings take the newest change. A tablet with
+nothing saved yet always takes the cloud's copy on its first sign-in (before v33 a brand-new tablet or
+browser could replace the cloud copy with a blank one). **Restore from backup** replaces the record on every
+tablet. Each save also keeps an hourly snapshot in `books/dalton/history` for recovery, and a tablet keeps
+its previous copy in `localStorage` (`sb-meta-before-sync`) whenever a sync shrinks its roster or schedule.
+
 The Firebase project is **daltrillion-admin** (shared with Daltrillion, which doesn't use Firestore; the
 scorebook is its own web app there, "Dalton Scorebook"). Google sign-in is enabled and
 c28aa1-rgb.github.io is an authorized domain, so sign-in works on the GitHub Pages address (not on

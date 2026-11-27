@@ -77,10 +77,14 @@
   // decides which copy wins when two tablets have changed the same thing.
   function saveMeta() {
     if (testMode) return;
+    delete meta.fresh;
     meta.updated = Date.now();
     DB.saveMeta(meta, function (err) { if (err) toast('Could not save. Storage may be full.'); });
     if (syncing) Cloud.pushMeta(meta);
   }
+  // Remembers a deleted roster or schedule entry (see SBCore.mergeMeta).
+  function markGone(id) { if (id) { meta.gone = meta.gone || {}; meta.gone[id] = Date.now(); } }
+
   function saveGame(g) {
     if (testMode) return;
     g.updated = Date.now();
@@ -263,7 +267,9 @@
     DB.open(function () {
       DB.loadMeta(function (err, m) {
         meta = m || defaultMeta();
-        if (!m) saveMeta();
+        // Nothing saved on this tablet yet: a blank record that never counts as newer than the cloud's
+        // (stamped 0 and marked fresh), so signing in on a new tablet can't wipe out the real one.
+        if (!m) { meta.updated = 0; meta.fresh = true; DB.saveMeta(meta, function () {}); }
         meta.schedule = meta.schedule || [];   // added after the first version
         DB.loadGames(function (err2, gs) {
           games = gs || [];
@@ -367,12 +373,7 @@
   function mergeWithCloud(done) {
     Cloud.pull(function (err, remote) {
       if (err || testMode) { done(!err); return; }
-      if (remote.meta && (remote.meta.updated || 0) > (meta.updated || 0)) {
-        meta = remote.meta; meta.schedule = meta.schedule || [];
-        DB.saveMeta(meta, function () {});
-      } else if (!remote.meta || (meta.updated || 0) > (remote.meta.updated || 0)) {
-        Cloud.pushMeta(meta);
-      }
+      takeMerged(C.mergeMeta(meta, remote.meta));
       var byId = {};
       remote.games.forEach(function (rg) { byId[rg.id] = rg; });
       games = games.filter(function (g) {
@@ -413,11 +414,24 @@
     DB.saveGame(rg, function () {});
   }
   function onRemoteMeta(rm) {
-    if (testMode || !rm || (rm.updated || 0) <= (meta.updated || 0)) return;
-    meta = rm; meta.schedule = meta.schedule || [];
-    DB.saveMeta(meta, function () {});
-    applyTheme();
-    refresh();
+    if (testMode || !rm) return;
+    if (takeMerged(C.mergeMeta(meta, rm))) { applyTheme(); refresh(); }
+  }
+
+  // Uses a merged record: saves it here if it changed anything, and sends it up if the cloud lacks
+  // something. Before a sync shrinks the roster or schedule here, the old copy is kept on this tablet
+  // (localStorage sb-meta-before-sync) in case it's ever needed. Returns true if this tablet changed.
+  function takeMerged(mm) {
+    if (mm.local) {
+      var old = meta, nu = mm.meta;
+      if ((old.players || []).length > (nu.players || []).length || (old.schedule || []).length > (nu.schedule || []).length) {
+        try { localStorage.setItem('sb-meta-before-sync', JSON.stringify({ at: Date.now(), meta: old })); } catch (e) {}
+      }
+      meta = nu; meta.schedule = meta.schedule || [];
+      if (!mm.remote) DB.saveMeta(meta, function () {});
+    }
+    if (mm.remote) saveMeta();
+    return mm.local;
   }
   // Redraw after a change from another tablet, but not under an open sheet or mid-typing.
   function refresh() {
@@ -1883,6 +1897,7 @@
     if (ui.armed !== 'sch' + x) { ui.armed = 'sch' + x; return render(); }
     ui.armed = null;
     meta.schedule = meta.schedule.filter(function (s) { return s.id !== x; });
+    markGone(x);
     saveMeta();
     render();
   };
@@ -1945,6 +1960,7 @@
   actions.rmPlayer = function (x) {
     if (ui.armed !== 'rm' + x) { ui.armed = 'rm' + x; return render(); }
     meta.players = meta.players.filter(function (p) { return p.id !== x; });
+    markGone(x);
     ui.armed = null;
     saveMeta();
     render();
@@ -1998,6 +2014,7 @@
     ui.armed = null;
     games.filter(function (g) { return g.sample; }).forEach(function (g) { removeGame(g.id); });
     games = games.filter(function (g) { return !g.sample; });
+    meta.players.concat(meta.schedule).forEach(function (x) { if (x.sample) markGone(x.id); });
     meta.players = meta.players.filter(function (p) { return !p.sample; });
     meta.schedule = meta.schedule.filter(function (s) { return !s.sample; });
     saveMeta();
@@ -2263,6 +2280,8 @@
         // The restored copy becomes the cloud copy too.
         if (syncing) {
           meta.updated = Date.now();
+          meta.gen = Date.now();   // newer generation: replaces, not merges, on other tablets
+          delete meta.fresh;
           games.forEach(function (g) { g.updated = Date.now(); g.synced = true; });
           Cloud.replaceAll(meta, games);
         }

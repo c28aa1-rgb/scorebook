@@ -335,6 +335,68 @@
   }
 
   /*
+   * Merging two tablets' copies of the scorebook record (roster, schedule, seasons, opponents, settings).
+   * Lists are merged item by item, so a tablet with an older copy can't wipe out what another added;
+   * deletions travel as tombstones (meta.gone: { id: time }). Single values (team, settings, current
+   * season) come from the newer copy. A restored backup (higher meta.gen) replaces everything, and a
+   * brand-new tablet's blank record (meta.fresh) always gives way to the cloud's.
+   * Returns { meta, local: differs from local, remote: differs from remote }.
+   */
+  var META_LISTS = ['seasons', 'players', 'opponents', 'schedule'];
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function itemKey(list, x) { return list === 'opponents' ? 'n:' + String(x.name || '').toLowerCase() : 'i:' + x.id; }
+  // JSON with sorted keys and no undefined values, so equal records compare equal whatever the key order.
+  function stable(v) {
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) return '[' + v.map(stable).join(',') + ']';
+    return '{' + Object.keys(v).sort().filter(function (k) { return v[k] !== undefined; })
+      .map(function (k) { return JSON.stringify(k) + ':' + stable(v[k]); }).join(',') + '}';
+  }
+  function canonMeta(m) {
+    var c = {};
+    Object.keys(m || {}).forEach(function (k) {
+      if (k === 'updated' || k === 'fresh' || m[k] === undefined) return;
+      if (k === 'gone' && !Object.keys(m.gone || {}).length) return;
+      c[k] = META_LISTS.indexOf(k) >= 0 ? (m[k] || []).map(stable).sort() : m[k];
+    });
+    return stable(c);
+  }
+  function mergeMeta(local, remote) {
+    if (!remote) return { meta: local, local: false, remote: true };
+    if (!local || local.fresh) return { meta: remote, local: true, remote: false };
+    var lg = local.gen || 0, rg = remote.gen || 0;
+    if (lg !== rg) { var w = lg > rg ? local : remote; return { meta: w, local: w !== local, remote: w !== remote }; }
+    var newer = (remote.updated || 0) > (local.updated || 0) ? remote : local, older = newer === local ? remote : local;
+    var out = clone(newer), gone = {}, k, top = Math.max(local.updated || 0, remote.updated || 0);
+    [older.gone, newer.gone].forEach(function (g) { for (k in g || {}) if (!gone[k] || g[k] > gone[k]) gone[k] = g[k]; });
+    for (k in gone) if (gone[k] < top - 180 * 864e5) delete gone[k];   // forget deletions after six months
+    out.gone = gone;
+    META_LISTS.forEach(function (name) {
+      var list = (out[name] || []).slice(), seen = {};
+      list.forEach(function (x) { seen[itemKey(name, x)] = true; });
+      (older[name] || []).forEach(function (x) {
+        var key = itemKey(name, x);
+        if (!seen[key]) { seen[key] = true; list.push(clone(x)); }
+      });
+      list = list.filter(function (x) { return !(x && x.id && gone[x.id]); });
+      if (name === 'schedule') {
+        // The same game added on two tablets: keep one (the one that's been played, if either).
+        var byGame = {};
+        list.forEach(function (x) {
+          var gk = x.seasonId + '|' + x.date + '|' + String(x.opponent || '').toLowerCase(), have = byGame[gk];
+          if (!have || (!have.gameId && x.gameId)) byGame[gk] = x;
+        });
+        list = list.filter(function (x) { return byGame[x.seasonId + '|' + x.date + '|' + String(x.opponent || '').toLowerCase()] === x; });
+      }
+      out[name] = list;
+    });
+    if (!out.seasons.some(function (s) { return s.id === out.currentSeasonId; }) && out.seasons.length) out.currentSeasonId = out.seasons[0].id;
+    out.updated = top;
+    var c = canonMeta(out);
+    return { meta: out, local: c !== canonMeta(local), remote: c !== canonMeta(remote) };
+  }
+
+  /*
    * Season totals per player across finished games, plus each player's game-by-game lines.
    * games: [{ events, rules, quarter, roster? }]; players: [{id}]
    * Per player: gp, line (totals), pm (plus/minus total), pmGp (games where it was tracked),
@@ -375,6 +437,7 @@
     emptyLine: emptyLine,
     computeGame: computeGame,
     computeSeason: computeSeason,
+    mergeMeta: mergeMeta,
     gameFlow: gameFlow,
     foulState: foulState,
     outReason: outReason,

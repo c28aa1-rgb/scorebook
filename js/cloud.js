@@ -113,9 +113,17 @@
     timers[key] = setTimeout(function () { delete timers[key]; fn(); }, 800);
   }
 
+  // Each save also refreshes this hour's snapshot (books/{book}/history/meta-YYYY-MM-DDTHH), so an
+  // earlier roster and schedule can always be recovered from the console.
   function pushMeta(meta) {
     if (!book) return;
-    later('meta', function () { track(book.set({ meta: clean(meta), updated: meta.updated || Date.now() })); });
+    later('meta', function () {
+      var doc = { meta: clean(meta), updated: meta.updated || Date.now() };
+      track(book.set(doc));
+      if ((meta.players || []).length || (meta.schedule || []).length) {
+        book.collection('history').doc('meta-' + new Date().toISOString().slice(0, 13)).set(doc)['catch'](function () {});
+      }
+    });
   }
   function pushGame(g) {
     if (!book) return;

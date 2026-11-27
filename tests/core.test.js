@@ -261,6 +261,65 @@ test('season totals and record', function () {
   assert.deepStrictEqual([s.team.w, s.team.l], [1, 1]);
 });
 
+// ---------- syncing the roster/schedule record between tablets ----------
+function rec(updated, extra) {
+  var m = { updated: updated, team: { name: 'Dalton' }, seasons: [{ id: 's1', name: '2026–27' }], currentSeasonId: 's1',
+    players: [], opponents: [], schedule: [], settings: { names: 'first' } };
+  for (var k in extra || {}) m[k] = extra[k];
+  return m;
+}
+function pl(id, num) { return { id: id, seasonId: 's1', num: num, first: 'P' + id }; }
+function sc(id, date, opp, gameId) { return { id: id, seasonId: 's1', date: date, opponent: opp, homeAway: 'home', gameId: gameId || null }; }
+
+test('a new tablet\'s blank record never replaces the cloud\'s', function () {
+  var blank = rec(0, { fresh: true, seasons: [{ id: 'new', name: '2026–27' }], currentSeasonId: 'new' });
+  var cloud = rec(100, { players: [pl('a', '3'), pl('b', '5')], schedule: [sc('x', '2026-12-04', 'Grace Church')] });
+  var r = SB.mergeMeta(blank, cloud);
+  assert.strictEqual(r.remote, false);
+  assert.strictEqual(r.local, true);
+  assert.strictEqual(r.meta.players.length, 2);
+  assert.strictEqual(r.meta.currentSeasonId, 's1');
+});
+
+test('an older copy can\'t wipe out players and games added elsewhere', function () {
+  var stale = rec(500, { players: [pl('a', '3')], settings: { names: 'full' } });          // newer, but missing things
+  var cloud = rec(100, { players: [pl('a', '3'), pl('b', '5')], schedule: [sc('x', '2026-12-04', 'Grace Church')] });
+  var r = SB.mergeMeta(stale, cloud);
+  assert.deepStrictEqual(r.meta.players.map(function (p) { return p.id; }).sort(), ['a', 'b']);
+  assert.strictEqual(r.meta.schedule.length, 1);
+  assert.strictEqual(r.meta.settings.names, 'full');     // single values come from the newer copy
+  assert.strictEqual(r.local, true);
+  assert.strictEqual(r.remote, true);
+});
+
+test('deletions stick; identical copies need no sync', function () {
+  var here = rec(300, { players: [pl('a', '3')], gone: { b: 290 } });
+  var cloud = rec(100, { players: [pl('a', '3'), pl('b', '5')] });
+  var r = SB.mergeMeta(here, cloud);
+  assert.deepStrictEqual(r.meta.players.map(function (p) { return p.id; }), ['a']);
+  // Same content in a different key order: nothing to do either way.
+  var a = rec(5, { players: [{ id: 'a', num: '3', seasonId: 's1' }] }), b = rec(9, { players: [{ seasonId: 's1', num: '3', id: 'a' }] });
+  var r2 = SB.mergeMeta(a, b);
+  assert.strictEqual(r2.local, false);
+  assert.strictEqual(r2.remote, false);
+});
+
+test('the same scheduled game added twice is kept once (the played one)', function () {
+  var here = rec(200, { schedule: [sc('x1', '2026-12-04', 'Grace Church')] });
+  var cloud = rec(100, { schedule: [sc('x2', '2026-12-04', 'grace church', 'g9')] });
+  var r = SB.mergeMeta(here, cloud);
+  assert.strictEqual(r.meta.schedule.length, 1);
+  assert.strictEqual(r.meta.schedule[0].gameId, 'g9');
+});
+
+test('a restored backup replaces everything instead of merging', function () {
+  var restored = rec(50, { gen: 1000, players: [pl('r', '1')] });
+  var other = rec(900, { players: [pl('a', '3'), pl('b', '5')] });
+  var r = SB.mergeMeta(other, restored);
+  assert.deepStrictEqual(r.meta.players.map(function (p) { return p.id; }), ['r']);
+  assert.strictEqual(r.remote, false);
+});
+
 var failed = 0;
 tests.forEach(function (t) {
   try { t[1](); console.log('ok   ' + t[0]); }
