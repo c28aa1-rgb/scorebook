@@ -669,7 +669,8 @@
       find: function (id) { return player(id) || findInGames(id); },
       name: shortName, jersey: jerseyOf,
       full: function (p) { return ((p.first || '') + ' ' + (p.last || '')).trim() || 'Player'; },
-      periodLabel: function (q) { return C.periodLabel(q, rules); }
+      periodLabel: function (q) { return C.periodLabel(q, rules); },
+      teamColor: meta.team.color, teamShort: meta.team.name
     };
   }
   // A player no longer on the roster, from a game's roster snapshot.
@@ -723,9 +724,13 @@
   ];
   var sqResults = [];
 
+  // In the header: a magnifier icon; tapped, it grows into the search field (and shrinks back on close).
+  var SQ_ICON = '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M13 13l5 5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
   function searchBox() {
-    return '<div class="stat-search"><input id="stat-q" type="search" data-statq="1" placeholder="Search players, stats, games…" autocomplete="off" value="' +
-      esc(ui.statQ || '') + '" aria-label="Search stats"><div class="sq-res" id="sq-res" hidden></div></div>';
+    if (!ui.sqOpen) return '<button class="btn sm sq-btn" data-a="sqOpen" aria-label="Search players, stats and games" title="Search">' + SQ_ICON + '</button>';
+    return '<div class="hd-search' + (ui.sqAnim ? ' grow' : '') + '"><span class="sq-ico">' + SQ_ICON + '</span>' +
+      '<input id="stat-q" type="search" data-statq="1" placeholder="Players, stats, games…" autocomplete="off" value="' + esc(ui.statQ || '') + '" aria-label="Search stats">' +
+      '<button class="sq-x" data-a="sqClose" aria-label="Close search">×</button><div class="sq-res" id="sq-res" hidden></div></div>';
   }
   function sqWords(q) { return String(q || '').toLowerCase().split(/\s+/).filter(Boolean); }
   function sqHas(text, words) { text = String(text).toLowerCase(); return words.every(function (w) { return text.indexOf(w) >= 0; }); }
@@ -815,11 +820,10 @@
   screens.stats = function () {
     var tab = route.id || 'team', season = find(meta.seasons, meta.currentSeasonId) || {}, SS = window.SBStats;
     ui.lastStats = tab;
-    var h = [pageHead('Stats · ' + (season.name || ''), backBtn('#home', 'Home'), '<button class="btn sm" data-a="printStats">Print</button>')];
+    var h = [pageHead(ui.sqOpen ? '' : 'Stats · ' + (season.name || ''), backBtn('#home', 'Home'), searchBox() + '<button class="btn sm" data-a="printStats">Print</button>')];
     h.push('<div class="stat-bar no-print"><div class="seg stat-tabs">' + STAT_TABS.map(function (t) {
       return '<button data-a="go" data-x="#stats/' + t[0] + '" class="' + (tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>';
     }).join('') + '</div>' + filterSelect() + '</div>');
-    h.push('<div class="stat-bar sub no-print">' + searchBox() + '</div>');
     if (tab === 'players') {
       var v = ui.statView || 'pergame';
       h.push('<div class="stat-bar sub no-print"><div class="seg stat-views">' + Object.keys(SS.VIEWS).map(function (k) {
@@ -843,9 +847,9 @@
     var prev = i > 0 ? ps[i - 1] : null, next = i >= 0 && i < ps.length - 1 ? ps[i + 1] : null;
     var nav = (prev ? '<button class="btn sm" data-a="go" data-x="#player/' + prev.id + '">‹ ' + esc(jerseyOf(prev)) + '</button>' : '') +
       (next ? '<button class="btn sm" data-a="go" data-x="#player/' + next.id + '">' + esc(jerseyOf(next)) + ' ›</button>' : '') +
-      '<button class="btn sm" data-a="printStats">Print</button>';
-    var h = [pageHead(pTag(p), backBtn('#stats/' + (ui.lastStats || 'players'), 'Stats'), nav)];
-    h.push('<div class="stat-bar no-print">' + searchBox() + filterSelect() + '</div>');
+      searchBox() + '<button class="btn sm" data-a="printStats">Print</button>';
+    var h = [pageHead(ui.sqOpen ? '' : pTag(p), backBtn('#stats/' + (ui.lastStats || 'players'), 'Stats'), nav)];
+    h.push('<div class="stat-bar no-print"><span class="stat-hint">Tap a game to open its report</span>' + filterSelect() + '</div>');
     h.push('<div class="sx-wrap">' + window.SBStats.player(statsData(), statsCtx(false), p.id) + '</div>');
     if (ui.drawer === 'print') h.push(printPicker(p.id));
     return h.join('');
@@ -2269,12 +2273,26 @@
   actions.sqGo = function (x) {
     var r = sqResults[+x];
     if (!r) return;
-    ui.statQ = '';
+    ui.statQ = ''; ui.sqOpen = false;
     if (r.go) return go(r.go);
     var st = r.stat, views = window.SBStats.VIEWS;
     if (views[st[2]]) { ui.statView = st[2]; ui.statSort = { k: st[3], dir: 'desc' }; go('#stats/players'); return; }
     go('#stats/' + st[2]);
     if (st[3]) setTimeout(function () { focusStatLabel(st[3]); }, 60);
+  };
+  actions.sqOpen = function () {
+    ui.sqOpen = true; ui.sqAnim = true;
+    render();
+    ui.sqAnim = false;
+    var i = document.getElementById('stat-q'); if (i) i.focus();
+    // The growing animation clips its contents; unclip once it's done so the results list shows.
+    setTimeout(function () { var el = document.querySelector('.hd-search.grow'); if (el) el.classList.remove('grow'); }, 300);
+  };
+  // Shrinks the field back to the icon, then clears the search.
+  actions.sqClose = function () {
+    var el = document.querySelector('.hd-search');
+    function done() { ui.sqOpen = false; ui.statQ = ''; render(); }
+    if (el && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) { el.classList.add('shrink'); setTimeout(done, 170); } else done();
   };
   actions.sqClear = function () { ui.statQ = ''; var i = document.getElementById('stat-q'); if (i) i.value = ''; applyStatSearch(false); };
   actions.printStats = function () {
@@ -2478,7 +2496,7 @@
   app.addEventListener('keydown', function (ev) {
     if (!ev.target.getAttribute || !ev.target.getAttribute('data-statq')) return;
     if (ev.key === 'Enter') { ev.preventDefault(); if (sqResults.length) actions.sqGo('0'); }
-    else if (ev.key === 'Escape') actions.sqClear();
+    else if (ev.key === 'Escape') actions.sqClose();
   });
   app.addEventListener('focusin', function (ev) { if (ev.target.getAttribute && ev.target.getAttribute('data-statq') && ui.statQ) applyStatSearch(true); });
   app.addEventListener('focusout', function (ev) {

@@ -809,3 +809,33 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
 .sx .sq-flash { animation: sq-flash 1.8s ease-out; }
 @keyframes sq-flash { 0%, 40% { background: #FFE39A; } 100% { background: transparent; } }
 @media print { .stat-search, .sq-note { display: none !important; } }
+
+/* Header search: an icon that grows into a rounded field (and shrinks back) */
+.sq-btn { width: 2.6rem; padding: 0 !important; display: inline-flex; align-items: center; justify-content: center; }
+.sq-btn svg, .sq-ico svg { width: 1.15rem; height: 1.15rem; display: block; }
+.hd-search { position: relative; flex: 0 1 26rem; width: 26rem; max-width: 26rem; min-width: 2.6rem; height: 2.6rem; display: flex; align-items: center;
+  background: #fff; border-radius: 1.3rem; color: var(--ink); }
+.hd-search .sq-ico { position: absolute; left: 0.75rem; top: 50%; margin-top: -0.575rem; color: var(--ledger); }
+.hd-search input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; padding: 0 2.6rem 0 2.4rem; font-size: 0.95rem; color: var(--ink); border-radius: 1.3rem; }
+.hd-search input:focus { outline: none; }
+.hd-search input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+.hd-search .sq-x { position: absolute; right: 0.3rem; top: 50%; margin-top: -1rem; width: 2rem; height: 2rem; border-radius: 50%; font-size: 1.35rem; line-height: 2rem; text-align: center; color: var(--ink2); }
+.hd-search .sq-x:active { background: var(--accent-soft); }
+.hd-search .sq-res { top: calc(100% + 0.5rem); color: var(--ink); }
+.hd-search.grow, .hd-search.shrink { overflow: hidden; }
+.hd-search.grow { animation: sq-grow 0.26s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.hd-search.grow input, .hd-search.grow .sq-x { animation: sq-fade 0.26s ease-out both; }
+.hd-search.shrink { animation: sq-shrink 0.17s ease-in both; }
+.hd-search.shrink input, .hd-search.shrink .sq-x { opacity: 0; }
+@keyframes sq-grow { from { max-width: 2.6rem; } to { max-width: 26rem; } }
+@keyframes sq-shrink { from { max-width: 26rem; } to { max-width: 2.6rem; } }
+@keyframes sq-fade { from { opacity: 0; } 50% { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .hd-search.grow, .hd-search.shrink, .hd-search.grow input, .hd-search.grow .sq-x { animation: none; } }
+@media print { .sq-btn, .hd-search { display: none !important; } }
+
+/* Player page jersey (js/stats.js jerseySvg) */
+.sx-jersey { flex: none; width: 7.4rem; height: auto; display: block; }
+.sx-jersey .jy-team { font-family: var(--f-num); font-weight: 700; font-size: 9.5px; letter-spacing: 1.8px; fill: #fff; }
+.sx-jersey .jy-num { font-family: var(--f-num); font-weight: 700; letter-spacing: -1px; }
+@media print { .sx-hero .sx-jersey { width: 5.6rem; } }
+.pg-hd .back, .pg-hd .btn { flex: none; white-space: nowrap; }

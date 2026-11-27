@@ -748,6 +748,42 @@
     return sheet(ctx, 'Game log', '<b>' + n + '</b> games', h.join(''), 'wide');
   }
 
+  // ---------- Jersey (player page) ----------
+  // A tank-top jersey in the team color with the number, the team name across the chest and tiger
+  // stripes down the sides. Plain SVG so it prints.
+  var jerseyN = 0;
+  function mixHex(hex, to, amt) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(hex || '') ? hex.replace('#', '') : '2340C8', t = to.replace('#', ''), out = '#';
+    for (var i = 0; i < 3; i++) {
+      var a = parseInt(m.substr(i * 2, 2), 16), b = parseInt(t.substr(i * 2, 2), 16);
+      out += ('0' + Math.round(a + (b - a) * amt).toString(16)).slice(-2);
+    }
+    return out;
+  }
+  function jerseySvg(text, color, team) {
+    var id = 'jy' + (++jerseyN), c = color || '#2340C8', dark = mixHex(c, '#000000', 0.45), deep = mixHex(c, '#000000', 0.62), light = mixHex(c, '#ffffff', 0.22);
+    var body = 'M30 6 L46 6 C48 27 72 27 74 6 L90 6 C91 26 98 42 108 50 L110 133 Q60 138 10 133 L12 50 C22 42 29 26 30 6 Z';
+    var stripes = ['M11 60 C18 60 24 63 29 68 C23 67 17 67 11 69 Z', 'M11 78 C19 77 26 80 31 86 C24 84 17 85 11 88 Z',
+      'M11 97 C18 96 25 99 30 105 C23 103 17 104 11 107 Z', 'M11 116 C17 115 22 118 26 123 C20 121 15 122 11 125 Z',
+      'M16 52 C20 53 24 55 27 59 C23 58 19 58 15 59 Z'];
+    var t = String(text || '?'), size = t.length >= 3 ? 34 : t.length === 2 ? 48 : 56;
+    var name = String(team || '').toUpperCase().slice(0, 10);
+    return '<svg class="sx-jersey" viewBox="0 0 120 140" role="img" aria-label="Jersey ' + esc(t) + '">' +
+      '<defs><linearGradient id="' + id + 'g" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="' + light + '"/><stop offset="0.55" stop-color="' + c + '"/><stop offset="1" stop-color="' + dark + '"/></linearGradient>' +
+      '<clipPath id="' + id + 'c"><path d="' + body + '"/></clipPath></defs>' +
+      '<path d="' + body + '" fill="url(#' + id + 'g)"/>' +
+      '<g clip-path="url(#' + id + 'c)" fill="' + deep + '" opacity="0.7">' + stripes.map(function (d) { return '<path d="' + d + '"/>'; }).join('') +
+      '<g transform="translate(120 0) scale(-1 1)">' + stripes.map(function (d) { return '<path d="' + d + '"/>'; }).join('') + '</g></g>' +
+      '<path d="M36 10 C40 40 42 70 40 130" stroke="#fff" stroke-opacity="0.08" stroke-width="10" fill="none" clip-path="url(#' + id + 'c)"/>' +
+      '<path d="M46 6 C48 27 72 27 74 6" fill="none" stroke="#fff" stroke-width="5"/>' +
+      '<path d="M90 6 C91 26 98 42 108 50" fill="none" stroke="#fff" stroke-width="5"/><path d="M30 6 C29 26 22 42 12 50" fill="none" stroke="#fff" stroke-width="5"/>' +
+      '<path d="' + body + '" fill="none" stroke="#101820" stroke-width="2.5" stroke-linejoin="round"/>' +
+      (name ? '<text x="60" y="46" text-anchor="middle" class="jy-team">' + esc(name) + '</text>' : '') +
+      '<text x="61.5" y="' + (100 + (56 - size) / 6).toFixed(0) + '" text-anchor="middle" class="jy-num" font-size="' + size + '" fill="' + deep + '" opacity="0.55">' + esc(t) + '</text>' +
+      '<text x="60" y="' + (98 + (56 - size) / 6).toFixed(0) + '" text-anchor="middle" class="jy-num" font-size="' + size + '" fill="#fff" stroke="' + deep + '" stroke-width="2.2" paint-order="stroke">' + esc(t) + '</text>' +
+      '</svg>';
+  }
+
   // ---------- One player ----------
   function rankOf(S, ctx, id, fn, lowBetter) {
     var rows = rosterRows(S, ctx).filter(function (r) { return r.s.gp; }).map(function (r) { return { id: r.p.id, v: fn(r.s) }; })
@@ -769,7 +805,7 @@
   }
   function playerSheet(S, ctx, id) {
     var p = ctx.find(id) || { num: '?', first: 'Player' }, s = S.players[id], h = [];
-    var head = '<div class="sx-hero"><div class="sx-cell"><span>' + esc(ctx.jersey(p)) + '</span><i></i></div><div class="who"><div class="sx-eye">' +
+    var head = '<div class="sx-hero">' + jerseySvg(ctx.jersey(p), ctx.teamColor, ctx.teamShort || ctx.teamName) + '<div class="who"><div class="sx-eye">' +
       esc(ctx.teamName) + ' · ' + esc(ctx.season) + ' · ' + esc(ctx.filter) + '</div><h1>' + esc(ctx.full(p)) + '</h1>';
     if (!s || !s.gp) {
       return '<section class="sx player">' + head + '<p class="sub">No finished games' + (ctx.filter !== 'All games' ? ' match this filter' : '') + ' yet.</p></div></div></section>';
