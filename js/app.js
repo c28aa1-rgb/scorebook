@@ -771,27 +771,38 @@
       }
       h.push('<div class="form">' + (pv.rows.length ? '<button class="btn pri" data-a="schedAdd">Add ' + pv.rows.length + ' game' + (pv.rows.length === 1 ? '' : 's') + '</button>' : '') +
         '<button class="btn ghost" data-a="schedCancel">Cancel</button></div>');
-    } else {
-      h.push('<h2>Add your schedule</h2><p class="note">Upload a spreadsheet saved as CSV (Google Sheets: File → Download → CSV; Excel: Save As → CSV), ' +
-        'or paste the schedule below, one game per line. Columns can be in any order: date, opponent, home/away, location, time. ' +
-        'Lines like “Tue Dec 2 @ Trinity 4:30 PM” or “12/5 vs Riverdale” work too.</p>' +
-        '<div class="form"><label class="btn" for="sch-file">Upload a file…</label><input id="sch-file" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" class="sr" data-schedfile="1"></div>' +
-        '<div class="fld" style="margin-top:0.75rem"><label for="sch-text">Or paste it here</label><textarea id="sch-text" rows="6" data-schedtext="1" placeholder="Tue Dec 2 @ Trinity 4:30 PM&#10;Fri Dec 5 vs Riverdale 6:00 PM&#10;1/9/27, Collegiate, Away, Collegiate Gym">' +
-        esc(ui.schedText || '') + '</textarea></div><div class="form"><button class="btn pri" data-a="schedRead">Read schedule</button></div>');
-      h.push('<h2>Add one game</h2><form class="form" data-form="addSched">' +
-        '<div class="fld xs" style="flex-basis:11rem"><label for="sa-date">Date</label><input id="sa-date" name="date" type="date" required></div>' +
-        '<div class="fld xs" style="flex-basis:8rem"><label for="sa-time">Time</label><input id="sa-time" name="time" placeholder="4:30 PM" autocomplete="off"></div>' +
-        '<div class="fld"><label for="sa-opp">Opponent</label><input id="sa-opp" name="opponent" required autocomplete="off"></div>' +
-        '<div class="fld xs" style="flex-basis:9rem"><label for="sa-side">Side</label><select id="sa-side" name="homeAway"><option value="home">Home</option><option value="away">Away</option></select></div>' +
-        '<div class="fld"><label for="sa-loc">Location</label><input id="sa-loc" name="location" autocomplete="off"></div>' +
-        '<div class="fld xs"><span class="lab">&nbsp;</span><button class="btn pri" type="submit">Add</button></div></form>');
     }
     h.push('<h2>' + list.length + ' scheduled game' + (list.length === 1 ? '' : 's') + '</h2>');
     if (!list.length) h.push('<p class="note">Nothing scheduled yet. Upcoming games show on the home screen with a Start game button.</p>');
     else h.push('<ul class="games sched">' + list.map(function (x) { return schedRow(x, true); }).join('') + '</ul>');
+    // Adding games lives in a section at the bottom that opens on demand (open when the schedule is empty).
+    var open = !pv && (ui.schedOpen === undefined ? !list.length : ui.schedOpen);
+    if (!pv) {
+      h.push('<div class="add-area' + (open ? ' open' : '') + '"><button class="add-toggle" data-a="schedToggle"><span class="pm">' + (open ? '−' : '+') + '</span>' +
+        '<b>Add games</b><small>Upload a CSV, paste a schedule, or add one game</small></button>');
+      if (open) {
+        h.push('<div class="add-body">');
+        h.push('<h3 class="add-hd">Upload or paste a schedule</h3><p class="note">Upload a spreadsheet saved as CSV (Google Sheets: File → Download → CSV; Excel: Save As → CSV), ' +
+            'or paste the schedule below, one game per line. Columns can be in any order: date, opponent, home/away, location, time. ' +
+            'Lines like “Tue Dec 2 @ Trinity 4:30 PM” or “12/5 vs Riverdale” work too.</p>' +
+            '<div class="form"><label class="btn" for="sch-file">Upload a file…</label><input id="sch-file" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" class="sr" data-schedfile="1"></div>' +
+            '<div class="fld" style="margin-top:0.75rem"><label for="sch-text">Or paste it here</label><textarea id="sch-text" rows="6" data-schedtext="1" placeholder="Tue Dec 2 @ Trinity 4:30 PM&#10;Fri Dec 5 vs Riverdale 6:00 PM&#10;1/9/27, Collegiate, Away, Collegiate Gym">' +
+            esc(ui.schedText || '') + '</textarea></div><div class="form"><button class="btn pri" data-a="schedRead">Read schedule</button></div>');
+        h.push('<h3 class="add-hd">Add one game</h3><form class="form" data-form="addSched">' +
+            '<div class="fld xs" style="flex-basis:11rem"><label for="sa-date">Date</label><input id="sa-date" name="date" type="date" required></div>' +
+            '<div class="fld xs" style="flex-basis:8rem"><label for="sa-time">Time</label><input id="sa-time" name="time" placeholder="4:30 PM" autocomplete="off"></div>' +
+            '<div class="fld"><label for="sa-opp">Opponent</label><input id="sa-opp" name="opponent" required autocomplete="off"></div>' +
+            '<div class="fld xs" style="flex-basis:9rem"><label for="sa-side">Side</label><select id="sa-side" name="homeAway"><option value="home">Home</option><option value="away">Away</option></select></div>' +
+            '<div class="fld"><label for="sa-loc">Location</label><input id="sa-loc" name="location" autocomplete="off"></div>' +
+            '<div class="fld xs"><span class="lab">&nbsp;</span><button class="btn pri" type="submit">Add</button></div></form>');
+        h.push('</div>');
+      }
+      h.push('</div>');
+    }
     h.push('</div>');
     return h.join('');
   };
+
 
   function readSchedule(text) {
     var res = window.SBSchedule.parse(text, seasonStartYear()), have = {};
@@ -1845,6 +1856,11 @@
     render();
   };
   // Schedule
+  actions.schedToggle = function () {
+    ui.schedOpen = !(ui.schedOpen === undefined ? !seasonSchedule().length : ui.schedOpen);
+    render();
+    if (ui.schedOpen) { var el = document.querySelector('.add-area'); if (el) el.scrollIntoView(); }
+  };
   actions.schedRead = function () {
     var el = document.getElementById('sch-text'), text = el ? el.value : '';
     if (!text.trim()) { toast('Paste the schedule first, or upload a file.'); return; }

@@ -716,3 +716,75 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
 }
 .sx-dl.two { column-count: 2; column-gap: 2.2rem; }
 .sx-dl.two > div { break-inside: avoid; -webkit-column-break-inside: avoid; }
+
+/* Schedule: adding games is a section at the bottom that opens on demand. */
+.add-area { margin-top: 1.6rem; border: 2px solid var(--rule); border-radius: 0.5rem; background: var(--card); }
+.add-area.open { border-color: var(--ink); }
+.add-toggle { display: flex; align-items: center; gap: 0.8rem; width: 100%; padding: 0.8rem 1rem; min-height: 4rem; text-align: left; }
+.add-toggle .pm { flex: none; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--accent); color: #fff; font-size: 1.5rem; line-height: 2.1rem; text-align: center; font-weight: 700; }
+.add-toggle b { font-size: 1.05rem; }
+.add-toggle small { margin-left: auto; color: var(--ink2); font-size: 0.82rem; }
+.add-body { padding: 0 1rem 1rem; border-top: 1px solid var(--rule); }
+.add-hd { margin: 1rem 0 0.3rem; font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ledger); }
+
+/* ---------- Stat charts ----------
+   Series colors: a = our blue, b = opponent grey, c = ledger green, d = amber, e = slate. */
+.sx-svg { display: block; width: 100%; height: auto; margin-top: 0.2rem; }
+.sx-svg .g { stroke: #E1E9E7; stroke-width: 1; }
+.sx-svg .ax { font-size: 11px; fill: var(--ink2); font-family: var(--f-num); }
+.sx-svg .ax.ttl { font-size: 11px; font-weight: 700; fill: var(--ledger); letter-spacing: 0.04em; }
+.sx-svg .xl { font-size: 10.5px; fill: var(--ink2); font-family: var(--f-body); }
+.sx-svg .avg { stroke: var(--warn); stroke-width: 1.6; stroke-dasharray: 5 4; }
+.sx-svg .avgt { fill: #9A6503; font-weight: 700; }
+.sx-svg .ln { fill: none; stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.sx-svg .pt { stroke: #fff; stroke-width: 1.5; }
+.sx-svg .vl { font-size: 10.5px; font-family: var(--f-num); font-weight: 700; }
+.sx-svg .ln.a { stroke: var(--accent); } .sx-svg .pt.a, .sx-svg .vl.a { fill: var(--accent); }
+.sx-svg .ln.b { stroke: #8FA7A2; } .sx-svg .pt.b, .sx-svg .vl.b { fill: #8FA7A2; }
+.sx-svg .ln.c { stroke: var(--ledger); } .sx-svg .pt.c, .sx-svg .vl.c { fill: var(--ledger); }
+.sx-svg .ln.d { stroke: var(--warn); } .sx-svg .pt.d, .sx-svg .vl.d { fill: #B87700; }
+.sx-svg .dot { fill: var(--accent); fill-opacity: 0.82; stroke: #fff; stroke-width: 1.5; }
+.sx-svg .dl { font-size: 11px; font-weight: 700; fill: #fff; font-family: var(--f-num); }
+.sx-key i.k { border-radius: 50%; }
+.sx-key i.k.a { background: var(--accent); } .sx-key i.k.b { background: #8FA7A2; }
+.sx-key i.k.c { background: var(--ledger); } .sx-key i.k.d { background: var(--warn); }
+
+/* Wins up, losses down */
+.sx-mbars { position: relative; display: flex; gap: 0.35rem; height: 10rem; margin: 0.4rem 0 2.4rem; }
+.sx-mbars:before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px solid var(--ink); }
+.sx-mbars > div { position: relative; flex: 1 1 0; max-width: 5.5rem; }
+.sx-mbars i { position: absolute; left: 12%; right: 12%; min-height: 2px; }
+.sx-mbars i.w { background: var(--accent); }
+.sx-mbars i.l { background: var(--out); }
+.sx-mbars i b { position: absolute; left: -0.4rem; right: -0.4rem; text-align: center; font-family: var(--f-num); font-size: 0.8rem; font-style: normal; }
+.sx-mbars i.w b { bottom: 100%; color: var(--accent); }
+.sx-mbars i.l b { top: 100%; color: var(--out); }
+.sx-mbars span { position: absolute; top: 100%; left: -0.2rem; right: -0.2rem; text-align: center; font-size: 0.64rem; color: var(--ink2); padding-top: 0.25rem; line-height: 1.15; white-space: nowrap; overflow: hidden; }
+.sx-mbars span small { display: block; font-family: var(--f-num); font-size: 0.66rem; }
+.sx-mbars > div.tap { cursor: pointer; }
+
+/* Small multiples: a bar per player for each stat */
+.sx-mult .hd, .sx-mult .row { display: grid; grid-template-columns: 9.5rem repeat(4, 1fr); gap: 0 1rem; align-items: center; }
+.sx-mult .hd span { font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ledger); font-weight: 700; padding-bottom: 0.2rem; }
+.sx-mult .row { padding: 0.2rem 0; border-top: 1px solid var(--rule); }
+.sx-mult .who { font-size: 0.84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sx-mult .cell { display: flex; align-items: center; gap: 0.4rem; }
+.sx-mult .trk { flex: 1; height: 0.7rem; background: #EEF2F1; position: relative; }
+.sx-mult .trk i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+.sx-mult .trk i.c { background: var(--ledger); } .sx-mult .trk i.d { background: var(--warn); } .sx-mult .trk i.e { background: #5E6E74; }
+.sx-mult .cell b { width: 2.3rem; text-align: right; font-family: var(--f-num); font-size: 0.9rem; }
+
+/* Diverging bars around zero */
+.sx-div .row { display: grid; grid-template-columns: 11rem 1fr 3.4rem; gap: 0.7rem; align-items: center; padding: 0.22rem 0; border-top: 1px solid var(--rule); }
+.sx-div .who { font-size: 0.84rem; white-space: nowrap; overflow: hidden; }
+.sx-div .trk { position: relative; height: 0.85rem; background: linear-gradient(to right, transparent calc(50% - 1px), var(--ink) calc(50% - 1px), var(--ink) calc(50% + 1px), transparent calc(50% + 1px)); }
+.sx-div .trk i { position: absolute; top: 0; bottom: 0; }
+.sx-div .trk i.w { background: var(--accent); } .sx-div .trk i.l { background: var(--out); }
+.sx-div b { text-align: right; font-family: var(--f-num); }
+
+/* Leaders: a thin bar under each name, relative to the leader */
+.sx-ldr li { position: relative; }
+.sx-ldr .lbar { position: absolute; left: 0; bottom: -1px; height: 3px; background: var(--accent); opacity: 0.35; }
+.sx-ldr li:first-child .lbar { opacity: 0.8; }
+@media print { .sx-mbars, .sx-mult, .sx-div, .sx-svg { break-inside: avoid; } }
+.sx-key { margin-bottom: 0.3rem; }

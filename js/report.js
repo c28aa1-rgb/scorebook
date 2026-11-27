@@ -61,12 +61,49 @@
     '.rpt .c.qe{border-right:3px solid var(--ledger)}',
     '.rpt .c.us.m{background:#EEF1FC}',
     '.rpt .led-key{font-size:0.72rem;color:var(--ink2);margin-top:0.2rem}',
+    '.rpt{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    '.rpt .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.4rem,1fr));margin-top:0.9rem;border-top:1px solid var(--rule);border-left:1px solid var(--rule)}',
+    '.rpt .kp div{padding:0.45rem 0.6rem;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}',
+    '.rpt .kp b{display:block;font-family:"Roboto Condensed","sans-serif-condensed",Bahnschrift,"Arial Narrow",sans-serif;font-size:1.45rem;line-height:1.05}',
+    '.rpt .kp span{display:block;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--ledger);font-weight:700;margin-top:0.1rem}',
+    '.rpt .kp small{display:block;font-size:0.7rem;color:var(--ink2)}',
+    '.rpt .mchart{display:block;width:100%;height:auto;margin-top:0.2rem}',
+    '.rpt .mchart .grid{stroke:#DDE6E4;stroke-width:1}',
+    '.rpt .mchart .zero{stroke:var(--ink);stroke-width:1.5}',
+    '.rpt .mchart .per{stroke:var(--ledger);stroke-width:1.5;stroke-dasharray:3 3}',
+    '.rpt .mchart .ax{font-size:10px;fill:var(--ink2);font-family:"Roboto Condensed",Bahnschrift,sans-serif}',
+    '.rpt .mchart .pl{font-size:11px;fill:var(--ledger);font-weight:700;font-family:"Roboto Condensed",Bahnschrift,sans-serif}',
+    '.rpt .mchart .fa{fill:var(--accent);opacity:0.28}',
+    '.rpt .mchart .fb{fill:#C62828;opacity:0.22}',
+    '.rpt .mchart .ln{fill:none;stroke:var(--ink);stroke-width:1.6;stroke-linejoin:round}',
+    '.rpt .mchart .tl{font-size:10px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase}',
+    '.rpt .mchart .tl.us{fill:var(--accent)}.rpt .mchart .tl.th{fill:#C62828}',
+    '.rpt .h2h-hd{display:flex;justify-content:space-between;font-size:0.72rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--ledger);margin-bottom:0.2rem}',
+    '.rpt .h2h-row{display:flex;align-items:center;gap:0.4rem;padding:0.22rem 0;border-bottom:1px solid var(--rule)}',
+    '.rpt .h2h-row .v{width:2rem;text-align:center;font-family:"Roboto Condensed",Bahnschrift,sans-serif;font-size:1rem}',
+    '.rpt .h2h-row .v.b{font-weight:700}',
+    '.rpt .h2h-row .lab{width:7.8rem;text-align:center;font-size:0.74rem;color:var(--ink2);flex:none}',
+    '.rpt .h2h-row .bar{flex:1;height:0.7rem;position:relative;background:#EEF2F1}',
+    '.rpt .h2h-row .bar i{position:absolute;top:0;bottom:0}',
+    '.rpt .h2h-row .bar.l i{right:0;background:var(--accent)}.rpt .h2h-row .bar.r i{left:0;background:#8FA7A2}',
+    '.rpt .sbars{margin-top:0.2rem}',
+    '.rpt .sb{display:flex;align-items:center;gap:0.5rem;padding:0.16rem 0}',
+    '.rpt .sb .who{width:8.2rem;flex:none;font-size:0.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.rpt .sb .jn{display:inline-block;min-width:1.9rem;font-weight:700;color:var(--ink2);font-family:"Roboto Condensed",Bahnschrift,sans-serif}',
+    '.rpt .sb .trk{flex:1;display:flex;height:0.85rem;background:#EEF2F1}',
+    '.rpt .sb .trk i{display:block;height:100%}',
+    '.rpt .sb b{width:1.8rem;text-align:right;font-family:"Roboto Condensed",Bahnschrift,sans-serif}',
+    '.rpt .m2{background:var(--accent)}.rpt .m3{background:var(--ledger)}.rpt .m1{background:#D98E04}.rpt .ma{background:#8FA7A2}',
+    '.rpt .sw{display:inline-block;width:0.65rem;height:0.65rem;margin:0 0.2rem 0 0.5rem;vertical-align:-0.05rem}',
+    '.rpt .unit{display:inline-flex;gap:0.18rem}',
+    '.rpt .unit span{min-width:1.6rem;text-align:center;border:1.5px solid var(--ink);border-radius:0.2rem;font-weight:700;font-size:0.8rem;line-height:1.3rem;padding:0 0.1rem}',
+    '.rpt td.up{color:var(--ledger)}.rpt td.down{color:#C62828}',
     '.rpt .foot{margin-top:1.6rem;font-size:0.7rem;color:var(--ink2);border-top:1px solid var(--rule);padding-top:0.4rem;display:flex;justify-content:space-between}',
     '@media print{@page{size:letter;margin:0.45in}',
     ' .rpt{max-width:none;padding:0;font-size:9.5pt}',
     ' .rpt .c.us.m{background:none}',
     ' .rpt h2{break-after:avoid}',
-    ' .rpt table,.rpt .led-blk{break-inside:avoid}}'
+    ' .rpt table,.rpt .led-blk,.rpt .mchart,.rpt .rpt-grid>div,.rpt .kp{break-inside:avoid}}'
   ].join('\n');
 
   function esc(s) {
@@ -241,9 +278,13 @@
       return (t.tm === 'us' ? meta.team.short || meta.team.name : 'OPP') + ' ' + C.periodLabel(t.q, c.rules) +
         (t.v === 'short' ? ' (30s)' : '');
     });
-    function item(k, v) { return '<div><dt>' + k + '</dt><dd>' + v + '</dd></div>'; }
+    function item(k, v, wide) { return '<div' + (wide ? ' style="flex-basis:100%"' : '') + '><dt>' + k + '</dt><dd>' + v + '</dd></div>'; }
+    var star = boxPlayers(game, meta, c).sort(function (a, b) { return gameScore(b.line) - gameScore(a.line); })[0];
+    var starText = star && gameScore(star.line) > 0 ? (esc(hashNum(star.p)) + esc(playerName(star.p, names === 'jersey' ? 'first' : names))).trim() + ' — ' + star.line.pts + ' pts, ' +
+      (star.line.oreb + star.line.dreb) + ' reb, ' + star.line.ast + ' ast' + (star.line.stl ? ', ' + star.line.stl + ' stl' : '') : '—';
     var topName = top && top.line.pts ? (esc(hashNum(top.p)) + esc(playerName(top.p, names))).trim() + ' — ' + top.line.pts : '—';
     return '<dl>' +
+      item('Top performer', starText, true) +
       item('Top scorer', topName) +
       item('Lead changes', f.leadChanges) +
       item('Times tied', f.ties) +
@@ -298,6 +339,136 @@
     return h.join('');
   }
 
+  // ---------- Visuals (plain HTML/SVG so they work in the saved file, published link and print) ----------
+
+  // Possessions estimate from our plays (no clock; the opponent's misses aren't recorded).
+  function possOf(l) { return Math.max(0, l.fga - l.oreb + l.to + 0.44 * l.fta); }
+  // Game score: a stat line in one number (10 is a solid game).
+  function gameScore(l) {
+    return l.pts + 0.4 * l.fgm - 0.7 * l.fga - 0.4 * (l.fta - l.ftm) + 0.7 * l.oreb + 0.3 * l.dreb + l.stl + 0.7 * l.ast + 0.7 * l.blk - 0.4 * l.pf - l.to;
+  }
+  function pct1(m, a) { return a ? (Math.round(m / a * 1000) / 10).toFixed(1) : '—'; }
+
+  // Headline team numbers for this game.
+  function glance(game, meta, c) {
+    var l = c.team.us, on = C.pctShown(meta.settings), poss = possOf(l);
+    function cell(v, lab, sub) { return '<div><b>' + v + '</b><span>' + lab + '</span>' + (sub ? '<small>' + sub + '</small>' : '') + '</div>'; }
+    function shot(m, a, show) { return show ? pct1(m, a) + (a ? '%' : '') : 'N/A'; }
+    return '<div class="kp">' +
+      cell(shot(l.fgm, l.fga, on.fg), 'Field goals', ma(l.fgm, l.fga)) +
+      cell(shot(l.tpm, l.tpa, on.tp), '3-pointers', ma(l.tpm, l.tpa)) +
+      cell(shot(l.ftm, l.fta, on.ft), 'Free throws', ma(l.ftm, l.fta)) +
+      cell(l.oreb + l.dreb, 'Rebounds', l.oreb + ' offensive') +
+      cell(l.ast, 'Assists', l.fgm ? Math.round(l.ast / l.fgm * 100) + '% of baskets' : '') +
+      cell(l.to, 'Turnovers', l.stl + ' steals') +
+      cell(Math.round(poss), 'Possessions', 'estimated') +
+      cell(poss ? Math.round(c.score.us / poss * 100) : '—', 'Pts / 100 poss', 'allowed ' + (poss ? Math.round(c.score.them / poss * 100) : '—')) +
+      '</div>';
+  }
+
+  // Score margin over the game: above the line = we led, below = they led. The x axis is play order
+  // (there's no clock), with a divider where each period starts.
+  function marginChart(game, meta, c) {
+    var ev = (game.events || []).filter(function (e) { return e.t !== 'sub' && e.t !== 'timeout'; }), n = ev.length;
+    if (!n || !(c.score.us + c.score.them)) return '';
+    var us = 0, th = 0, pts = [[0, 0]], starts = [], seenQ = {}, top = 0, low = 0;
+    ev.forEach(function (e, i) {
+      if (!seenQ[e.q]) { seenQ[e.q] = true; starts.push([e.q, i]); }
+      var p = C.points(e);
+      if (!p) return;
+      pts.push([i + 0.5, us - th]);
+      if (e.tm === 'us') us += p; else th += p;
+      pts.push([i + 0.5, us - th]);
+      top = Math.max(top, us - th); low = Math.min(low, us - th);
+    });
+    pts.push([n, us - th]);
+    var lim = Math.max(5, Math.ceil(Math.max(top, -low) / 5) * 5);
+    var W = 720, H = 190, L = 34, R = 10, T = 12, B = 24;
+    function x(i) { return (L + i / n * (W - L - R)).toFixed(1); }
+    function y(m) { return (T + (lim - m) / (2 * lim) * (H - T - B)).toFixed(1); }
+    var line = 'M' + pts.map(function (p) { return x(p[0]) + ',' + y(p[1]); }).join(' L');
+    var area = line + ' L' + x(n) + ',' + y(0) + ' L' + x(0) + ',' + y(0) + ' Z';
+    var id = 'mc' + String(game.id || 'x').replace(/[^a-z0-9]/gi, '');
+    var s = ['<svg class="mchart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Score margin through the game">',
+      '<defs><clipPath id="' + id + 'a"><rect x="0" y="0" width="' + W + '" height="' + y(0) + '"/></clipPath>',
+      '<clipPath id="' + id + 'b"><rect x="0" y="' + y(0) + '" width="' + W + '" height="' + H + '"/></clipPath></defs>'];
+    // Gridlines every 5 (or 10) points.
+    var step = lim > 20 ? 10 : 5;
+    for (var g = -lim; g <= lim; g += step) {
+      s.push('<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(g) + '" y2="' + y(g) + '" class="' + (g === 0 ? 'zero' : 'grid') + '"/>');
+      s.push('<text x="' + (L - 6) + '" y="' + (+y(g) + 4) + '" class="ax" text-anchor="end">' + (g > 0 ? '+' + g : g) + '</text>');
+    }
+    starts.forEach(function (st, k) {
+      var x0 = +x(st[1]), x1 = k + 1 < starts.length ? +x(starts[k + 1][1]) : W - R;
+      if (k) s.push('<line x1="' + x0 + '" x2="' + x0 + '" y1="' + T + '" y2="' + (H - B) + '" class="per"/>');
+      s.push('<text x="' + ((x0 + x1) / 2).toFixed(1) + '" y="' + (H - 7) + '" class="pl" text-anchor="middle">' + C.periodLabel(st[0], c.rules) + '</text>');
+    });
+    s.push('<path d="' + area + '" class="fa" clip-path="url(#' + id + 'a)"/><path d="' + area + '" class="fb" clip-path="url(#' + id + 'b)"/>');
+    s.push('<path d="' + line + '" class="ln"/>');
+    s.push('<text x="' + (L + 6) + '" y="' + (T + 13) + '" class="tl us">' + esc(meta.team.name) + ' ahead</text>');
+    s.push('<text x="' + (L + 6) + '" y="' + (H - B - 6) + '" class="tl th">' + esc(oppName(game)) + ' ahead</text>');
+    s.push('</svg>');
+    var f = C.gameFlow(game.events || []);
+    return s.join('') + '<p class="key">Biggest lead: ' + esc(meta.team.name) + ' ' + f.biggestLead.us + ', ' + esc(oppName(game)) + ' ' + f.biggestLead.them +
+      ' · lead changes: ' + f.leadChanges + ' · times tied: ' + f.ties + '. Plays run left to right (no clock), so a long stretch means lots of plays, not lots of time.</p>';
+  }
+
+  // Head-to-head bars: ours grow left from the middle, theirs grow right.
+  function headToHead(game, meta, c) {
+    var u = c.team.us, t = c.team.them, tu = c.timeoutsUsed;
+    var rows = [['Points', c.score.us, c.score.them], ['2-pointers made', u.fgm - u.tpm, t.fgm - t.tpm], ['3-pointers made', u.tpm, t.tpm],
+      ['Free throws made', u.ftm, t.ftm], ['Fouls', u.pf, t.pf], ['Timeouts used', tu.us.full + tu.us.short, tu.them.full + tu.them.short]];
+    var top = Math.max.apply(null, rows.slice(1).map(function (r) { return Math.max(r[1], r[2]); }).concat([1]));
+    return '<div class="h2h"><div class="h2h-hd"><span>' + esc(meta.team.short || meta.team.name) + '</span><span>' + esc(oppName(game)) + '</span></div>' +
+      rows.map(function (r, i) {
+        var m = i === 0 ? Math.max(r[1], r[2], 1) : top;
+        return '<div class="h2h-row"><span class="v' + (r[1] > r[2] ? ' b' : '') + '">' + r[1] + '</span><span class="bar l"><i style="width:' + (r[1] / m * 100).toFixed(1) +
+          '%"></i></span><span class="lab">' + r[0] + '</span><span class="bar r"><i style="width:' + (r[2] / m * 100).toFixed(1) + '%"></i></span><span class="v' +
+          (r[2] > r[1] ? ' b' : '') + '">' + r[2] + '</span></div>';
+      }).join('') + '</div>';
+  }
+
+  // Who scored, as bars split into 2s, 3s, free throws (and shooting-foul points).
+  function scorerBars(rows) {
+    rows = rows.filter(function (r) { return r.l.pts > 0; }).sort(function (a, b) { return b.l.pts - a.l.pts; });
+    if (!rows.length) return '<p class="key">No points.</p>';
+    var max = rows[0].l.pts;
+    return '<div class="sbars">' + rows.map(function (r) {
+      var l = r.l, p2 = 2 * (l.fgm - l.tpm), p3 = 3 * l.tpm, a = l.awd || 0;
+      function seg(v, cls) { return v ? '<i class="' + cls + '" style="width:' + (v / max * 100).toFixed(1) + '%"></i>' : ''; }
+      return '<div class="sb"><span class="who">' + r.label + '</span><span class="trk">' + seg(p2, 'm2') + seg(p3, 'm3') + seg(l.ftm, 'm1') + seg(a, 'ma') +
+        '</span><b>' + l.pts + '</b></div>';
+    }).join('') + '</div><p class="key"><i class="sw m2"></i>2s <i class="sw m3"></i>3s <i class="sw m1"></i>free throws' +
+      (rows.some(function (r) { return r.l.awd; }) ? ' <i class="sw ma"></i>shooting fouls' : '') + '</p>';
+  }
+
+  // Five-player groups used in this game (from the logged subs): points for and against with each on court.
+  function lineupsBlock(game, meta, c) {
+    if (!game.subLog || !C.replayLineup) return '';
+    var units = {}, list = [];
+    C.replayLineup(game, function (e, on) {
+      if (on.length !== 5 || e.t === 'sub' || e.t === 'timeout') return;
+      var k = on.slice().sort().join('|'), u = units[k] || (units[k] = { ids: on.slice(), pf: 0, pa: 0, poss: 0 });
+      var p = C.points(e);
+      if (p) { if (e.tm === 'us') u.pf += p; else u.pa += p; }
+      if (e.tm === 'us') {
+        if (e.t === 'make' || e.t === 'miss') u.poss += e.v === 1 ? 0.44 : 1;
+        else if (e.t === 'reb' && e.v === 'o') u.poss -= 1;
+        else if (e.t === 'to') u.poss += 1;
+      }
+    });
+    Object.keys(units).forEach(function (k) { list.push(units[k]); });
+    if (!list.length) return '';
+    list.sort(function (a, b) { return b.poss - a.poss; });
+    return '<div class="tw"><table><thead><tr><th class="l">Lineup</th><th title="Our possessions, estimated">Poss</th><th>PF</th><th>PA</th><th class="b">+/−</th></tr></thead><tbody>' +
+      list.map(function (u) {
+        var ps = u.ids.map(function (id) { return findPlayer(game, meta, id) || { num: '?' }; }).sort(byJersey);
+        var d = u.pf - u.pa;
+        return '<tr><td class="l"><span class="unit">' + ps.map(function (p) { return '<span>' + esc(jerseyText(p)) + '</span>'; }).join('') + '</span></td><td>' +
+          Math.max(0, Math.round(u.poss)) + '</td><td>' + u.pf + '</td><td>' + u.pa + '</td><td class="b ' + (d > 0 ? 'up' : d < 0 ? 'down' : '') + '">' + (d > 0 ? '+' + d : d) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
   function render(game, meta, opts) {
     opts = opts || {};
     var names = opts.names || (meta.settings && meta.settings.names) || 'first';
@@ -313,11 +484,19 @@
       '</span><span class="vs">–</span><span class="' + (them > us ? 'win' : '') + '">' + them + ' ' +
       esc(oppName(game)) + '</span></h1></div>');
     h.push('<div class="rpt-meta"><b>' + esc(fmtDate(game.date)) + '</b>' + esc(game.location || '') + '</div></header>');
+    h.push(glance(game, meta, c));
     h.push('<h2>Score by period</h2>' + lineScore(game, meta, c));
     if (c.rules.scoreResets) h.push('<p class="pw">' + esc(periodsWonText(game, meta, c)) + '</p>');
+    var mc = marginChart(game, meta, c);
+    if (mc) h.push('<h2>Score margin</h2>' + mc);
     h.push('<h2>' + esc(meta.team.name) + '</h2>' + ourBox(game, meta, c, names));
-    h.push('<div class="rpt-grid"><div><h2>' + esc(oppName(game)) + '</h2>' + oppBox(game, c) +
-      '</div><div><h2>Game flow</h2>' + flowBlock(game, meta, c, names) + '</div></div>');
+    var ourRows = boxPlayers(game, meta, c).map(function (r) { return { l: r.line, label: '<span class="jn">' + esc(r.num) + '</span>' + esc(playerName(r.p, names === 'jersey' ? 'first' : names)) }; });
+    var oppRows = Object.keys(c.opp).map(function (k) { return { l: c.opp[k], label: k === '' ? '<span class="dim">Team</span>' : '<span class="jn">#' + esc(k) + '</span>' }; });
+    h.push('<div class="rpt-grid"><div><h2>Head to head</h2>' + headToHead(game, meta, c) + '</div><div><h2>Game flow</h2>' + flowBlock(game, meta, c, names) + '</div></div>');
+    h.push('<div class="rpt-grid"><div><h2>Who scored · ' + esc(meta.team.short || meta.team.name) + '</h2>' + scorerBars(ourRows) + '</div><div><h2>Who scored · ' + esc(oppName(game)) + '</h2>' + scorerBars(oppRows) + '</div></div>');
+    h.push('<div class="rpt-grid"><div><h2>' + esc(oppName(game)) + '</h2>' + oppBox(game, c) + '</div>');
+    var lu = lineupsBlock(game, meta, c);
+    h.push(lu ? '<div><h2>Lineups used</h2>' + lu + '</div></div>' : '</div>');
     h.push('<h2>Running score</h2>' + ledger(game, meta, c));
     h.push('<div class="foot"><span>' + esc(meta.team.name) + ' scorebook</span><span>' +
       esc(c.rules.name) + ' rules</span></div>');

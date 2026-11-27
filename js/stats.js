@@ -261,6 +261,123 @@
     return rows.filter(function (r) { return r.s; });
   }
 
+  // ---------- Charts (SVG and plain divs, so they print) ----------
+  function shortOpp(g) { return (g.homeAway === 'away' ? '@' : '') + (g.opponent || 'Opp').slice(0, 9); }
+
+  // Line chart over games. series: [{ name, cls, vals: [number|null] }]. Gaps (null) break the line.
+  function lineChart(labels, series, o) {
+    o = o || {};
+    var n = labels.length;
+    if (!n) return '';
+    var all = [];
+    series.forEach(function (s) { s.vals.forEach(function (v) { if (v !== null && v !== undefined && !isNaN(v)) all.push(v); }); });
+    if (!all.length) return '<p class="sx-none">Not enough data yet.</p>';
+    var lo = o.min !== undefined ? o.min : Math.min.apply(null, all), hi = o.max !== undefined ? o.max : Math.max.apply(null, all);
+    // Round axis steps: 1, 2, 5, 10, 20, 25, 50…
+    var raw = Math.max(hi - lo, 4) / 4, mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), step = mag;
+    [1, 2, 2.5, 5, 10].some(function (m) { step = m * mag; return step >= raw; });
+    if (o.min === undefined) lo = Math.floor(lo / step) * step;
+    if (o.max === undefined) hi = lo + Math.ceil((hi - lo) / step) * step; else step = (hi - lo) / 4;
+    var W = o.w || 720, H = o.h || 210, L = o.values ? 50 : 38, R = 30, T = 16, B = 34;
+    function x(i) { return n === 1 ? (L + W - R) / 2 : L + i * (W - L - R) / (n - 1); }
+    function y(v) { return T + (hi - v) / (hi - lo || 1) * (H - T - B); }
+    var s = ['<svg class="sx-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img">'];
+    for (var gv = lo; gv <= hi + 0.001; gv += step) {
+      var gy = y(gv).toFixed(1);
+      s.push('<line x1="' + L + '" x2="' + (W - R) + '" y1="' + gy + '" y2="' + gy + '" class="g"/>');
+      s.push('<text x="' + (L - 6) + '" y="' + (+gy + 4) + '" class="ax" text-anchor="end">' + (o.fmt ? o.fmt(gv) : Math.round(gv)) + '</text>');
+    }
+    if (o.avg !== undefined && o.avg !== null) {
+      var ay = y(o.avg).toFixed(1);
+      s.push('<line x1="' + L + '" x2="' + (W - R) + '" y1="' + ay + '" y2="' + ay + '" class="avg"/>');
+      s.push('<text x="' + (W - R) + '" y="' + (+ay - 4) + '" class="ax avgt" text-anchor="end">avg ' + (o.fmt ? o.fmt(o.avg) : f1(o.avg)) + '</text>');
+    }
+    var every = Math.ceil(n / Math.max(3, Math.floor((W - L - R) / 62)));
+    labels.forEach(function (lab, i) {
+      if (i % every) return;
+      s.push('<text x="' + x(i).toFixed(1) + '" y="' + (H - 12) + '" class="xl" text-anchor="middle">' + esc(lab) + '</text>');
+    });
+    series.forEach(function (se) {
+      var seg = [], segs = [];
+      se.vals.forEach(function (v, i) {
+        if (v === null || v === undefined || isNaN(v)) { if (seg.length) segs.push(seg); seg = []; return; }
+        seg.push(x(i).toFixed(1) + ',' + y(v).toFixed(1));
+      });
+      if (seg.length) segs.push(seg);
+      segs.forEach(function (sg) { s.push('<polyline points="' + sg.join(' ') + '" class="ln ' + se.cls + '"/>'); });
+      se.vals.forEach(function (v, i) {
+        if (v === null || v === undefined || isNaN(v)) return;
+        s.push('<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="3.6" class="pt ' + se.cls + '"/>');
+        if (o.values) s.push('<text x="' + x(i).toFixed(1) + '" y="' + (y(v) - 7).toFixed(1) + '" class="vl ' + se.cls + '" text-anchor="middle">' + (o.fmt ? o.fmt(v) : Math.round(v)) + '</text>');
+      });
+    });
+    s.push('</svg>');
+    if (series.length > 1 || o.legend) s.push('<div class="sx-key">' + series.map(function (se) { return '<span><i class="k ' + se.cls + '"></i>' + esc(se.name) + '</span>'; }).join('') + '</div>');
+    return s.join('');
+  }
+
+  // Wins up, losses down: one column per game, height = margin.
+  function marginBars(S, ctx) {
+    var D = S.details, max = 5;
+    D.forEach(function (d) { max = Math.max(max, Math.abs(d.margin)); });
+    return '<div class="sx-mbars">' + D.map(function (d) {
+      var h = (Math.abs(d.margin) / max * 42).toFixed(1), up = d.margin >= 0;
+      return '<div' + link(ctx, '#report/' + d.g.id) + '><i class="' + (up ? 'w' : 'l') + '" style="height:' + h + '%;' + (up ? 'bottom:50%' : 'top:50%') + '"><b>' +
+        (d.margin > 0 ? '+' : '') + d.margin + '</b></i><span>' + esc(shortOpp(d.g)) + '<small>' + d.c.score.us + '–' + d.c.score.them + '</small></span></div>';
+    }).join('') + '</div>';
+  }
+
+  // Horizontal bars per player for a few stats side by side (small multiples).
+  function multiples(rows, cols) {
+    var max = cols.map(function (c) { var m = 0; rows.forEach(function (r) { var v = c.v(r.s); if (v > m) m = v; }); return m || 1; });
+    return '<div class="sx-mult"><div class="hd"><span></span>' + cols.map(function (c) { return '<span>' + c.lab + '</span>'; }).join('') + '</div>' +
+      rows.map(function (r) {
+        return '<div class="row"><span class="who">' + r.label + '</span>' + cols.map(function (c, k) {
+          var v = c.v(r.s);
+          return '<span class="cell"><span class="trk"><i class="' + (c.cls || '') + '" style="width:' + (v / max[k] * 100).toFixed(1) + '%"></i></span><b>' + f1(v) + '</b></span>';
+        }).join('') + '</div>';
+      }).join('') + '</div>';
+  }
+
+  // Diverging bars around zero, e.g. on/off court difference.
+  function divBars(rows, fmt) {
+    var max = 1;
+    rows.forEach(function (r) { max = Math.max(max, Math.abs(r.v)); });
+    return '<div class="sx-div">' + rows.map(function (r) {
+      var w = (Math.abs(r.v) / max * 50).toFixed(1), up = r.v >= 0;
+      return '<div class="row"><span class="who">' + r.label + '</span><span class="trk"><i class="' + (up ? 'w' : 'l') + '" style="width:' + w + '%;' +
+        (up ? 'left:50%' : 'right:50%') + '"></i></span><b class="' + (up ? 'pos' : 'neg') + '">' + fmt(r.v) + '</b></div>';
+    }).join('') + '</div>';
+  }
+
+  // Shot volume (x) against efficiency (y), dot size = points per game.
+  function scatter(S, ctx) {
+    var pts = rosterRows(S, ctx).filter(function (r) { return r.s.gp && r.s.line.fga >= 5; }).map(function (r) {
+      return { p: r.p, x: r.s.line.fga / r.s.gp, y: efg(r.s.line) * 100, z: r.s.line.pts / r.s.gp };
+    });
+    if (pts.length < 2 || !ctx.on.fg) return '';
+    var W = 720, H = 280, L = 44, R = 16, T = 16, B = 36;
+    var xmax = Math.ceil(Math.max.apply(null, pts.map(function (p) { return p.x; })) + 1), zmax = Math.max.apply(null, pts.map(function (p) { return p.z; })) || 1;
+    var ylo = Math.floor(Math.min.apply(null, pts.map(function (p) { return p.y; })) / 10) * 10 - 5, yhi = Math.ceil(Math.max.apply(null, pts.map(function (p) { return p.y; })) / 10) * 10 + 5;
+    ylo = Math.max(0, ylo); yhi = Math.min(100, Math.max(yhi, ylo + 20));
+    function x(v) { return L + v / xmax * (W - L - R); }
+    function y(v) { return T + (yhi - v) / (yhi - ylo) * (H - T - B); }
+    var s = ['<svg class="sx-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img">'], k;
+    for (k = ylo; k <= yhi; k += 10) s.push('<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(k).toFixed(1) + '" y2="' + y(k).toFixed(1) + '" class="g"/><text x="' + (L - 6) + '" y="' + (y(k) + 4).toFixed(1) + '" class="ax" text-anchor="end">' + k + '%</text>');
+    for (k = 0; k <= xmax; k += Math.max(1, Math.round(xmax / 6))) s.push('<text x="' + x(k).toFixed(1) + '" y="' + (H - 18) + '" class="ax" text-anchor="middle">' + k + '</text>');
+    var team = efg(S.team.us) * 100;
+    if (team >= ylo && team <= yhi) s.push('<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(team).toFixed(1) + '" y2="' + y(team).toFixed(1) + '" class="avg"/><text x="' + (W - R) + '" y="' + (y(team) - 4).toFixed(1) + '" class="ax avgt" text-anchor="end">team ' + f1(team) + '%</text>');
+    s.push('<text x="' + ((L + W - R) / 2) + '" y="' + (H - 3) + '" class="ax ttl" text-anchor="middle">Shots per game →</text>');
+    s.push('<text x="12" y="' + ((T + H - B) / 2) + '" class="ax ttl" text-anchor="middle" transform="rotate(-90 12 ' + ((T + H - B) / 2) + ')">Effective FG% →</text>');
+    pts.sort(function (a, b) { return b.z - a.z; }).forEach(function (p) {
+      var r = 7 + p.z / zmax * 13;
+      s.push('<circle cx="' + x(p.x).toFixed(1) + '" cy="' + y(p.y).toFixed(1) + '" r="' + r.toFixed(1) + '" class="dot"/>');
+      s.push('<text x="' + x(p.x).toFixed(1) + '" y="' + (y(p.y) + 4).toFixed(1) + '" class="dl" text-anchor="middle">' + esc(ctx.jersey(p.p)) + '</text>');
+    });
+    s.push('</svg>');
+    return s.join('') + '<p class="sx-foot" style="margin-top:0.2rem">Up = more efficient, right = shoots more, bigger dot = more points per game. Players with 5+ shots.</p>';
+  }
+
   // ---------- Team ----------
   function teamSheet(S, ctx) {
     var T = S.team, n = T.n, us = T.us, th = T.them, h = [];
@@ -285,6 +402,16 @@
         '<span class="m ' + (m >= 0 ? 'pos' : 'neg') + '">' + sgn1(m) + '</span>' + (c.note ? '<small>' + c.note + '</small>' : '') + '</div>';
     }).join('') + '<div class="sx-qkey"><span><i class="us"></i>' + esc(ctx.teamName) + '</span><span><i class="th"></i>' + esc(ctx.oppWord) + '</span></div></div>');
 
+    var labs = S.details.map(function (d) { return shortOpp(d.g); });
+    h.push(h2('Game by game', 'margin, wins up and losses down') + marginBars(S, ctx));
+    h.push('<div class="sx-cols"><div>' + h2('Points by game') + lineChart(labs, [
+      { name: ctx.teamName, cls: 'a', vals: S.details.map(function (d) { return d.c.score.us; }) },
+      { name: ctx.oppWord, cls: 'b', vals: S.details.map(function (d) { return d.c.score.them; }) }], { min: 0, w: 420, h: 250 }) + '</div>');
+    var shotSeries = [];
+    if (ctx.on.fg) shotSeries.push({ name: 'FG%', cls: 'a', vals: S.details.map(function (d) { var l = d.c.team.us; return l.fga ? l.fgm / l.fga * 100 : null; }) });
+    if (ctx.on.tp) shotSeries.push({ name: '3P%', cls: 'c', vals: S.details.map(function (d) { var l = d.c.team.us; return l.tpa ? l.tpm / l.tpa * 100 : null; }) });
+    if (ctx.on.ft) shotSeries.push({ name: 'FT%', cls: 'd', vals: S.details.map(function (d) { var l = d.c.team.us; return l.fta ? l.ftm / l.fta * 100 : null; }) });
+    h.push('<div>' + h2('Shooting by game') + (shotSeries.length ? lineChart(labs, shotSeries, { min: 0, max: 100, w: 420, h: 250, fmt: function (v) { return Math.round(v) + '%'; } }) : '<p class="sx-none">Shooting percentages are switched off in Settings.</p>') + '</div></div>');
     h.push('<div class="sx-cols">');
     h.push('<div>' + h2('Shooting') + shotBars(ctx, us) + dl([
       ['Field goals', ctx.on.fg ? pc(ratio(us.fgm, us.fga)) + '% <small>' + ma(us.fgm, us.fga) + '</small>' : 'N/A'],
@@ -429,7 +556,27 @@
       if (x === null && y === null) return 0; if (x === null) return 1; if (y === null) return -1;
       return sort.dir === 'asc' ? x - y : y - x;
     });
-    var h = ['<table class="sx-t sx-players"><thead><tr><th class="l">Player</th>'];
+    var h = [], played = rosterRows(S, ctx).filter(function (r) { return r.s.gp; }).map(function (r) {
+      return { s: r.s, p: r.p, label: pTag(ctx, r.p) };
+    });
+    if (played.length) {
+      if (view === 'pergame' || view === 'totals') {
+        var tot = view === 'totals', d = function (fn) { return function (s) { return tot ? fn(s.line) : fn(s.line) / s.gp; }; };
+        played.sort(function (a, b) { return b.s.line.pts / (tot ? 1 : b.s.gp) - a.s.line.pts / (tot ? 1 : a.s.gp); });
+        h.push(h2(tot ? 'Season totals' : 'Production', tot ? 'points, rebounds, assists, steals + blocks' : 'per game') + multiples(played, [
+          { lab: 'Points', v: d(function (l) { return l.pts; }) }, { lab: 'Rebounds', v: d(reb), cls: 'c' },
+          { lab: 'Assists', v: d(function (l) { return l.ast; }), cls: 'd' }, { lab: 'Steals + blocks', v: d(function (l) { return l.stl + l.blk; }), cls: 'e' }]));
+      } else if (view === 'shooting') {
+        var sc = scatter(S, ctx);
+        if (sc) h.push(h2('Volume and efficiency') + sc);
+      } else {
+        var oo = played.map(function (r) { var o = onOff(r.s); return { label: r.label, v: o.on !== null && o.off !== null ? o.on - o.off : null }; })
+          .filter(function (r) { return r.v !== null; }).sort(function (a, b) { return b.v - a.v; });
+        if (oo.length) h.push(h2('On/off court', 'team net per 100 possessions with them on, minus with them off') + divBars(oo, sgn1));
+      }
+    }
+    if (h.length) h.push(h2('Every player', 'tap a column to sort'));
+    h.push('<table class="sx-t sx-players"><thead><tr><th class="l">Player</th>');
     cols.forEach(function (c) {
       var on = sc === c;
       h.push('<th' + (c.cls ? ' class="' + c.cls + '"' : '') + (c.title ? ' title="' + esc(c.title) + '"' : '') + '>' +
@@ -504,8 +651,9 @@
     var h = ['<div class="sx-ldrs">'];
     leaderCats(ctx).forEach(function (cat) {
       var rows = ranked(S, ctx, cat).slice(0, 5);
+      var top = rows.length ? Math.abs(rows[0].v) || 1 : 1;
       h.push('<div class="sx-ldr"><h3>' + cat.lab + ' <small>' + cat.unit + '</small></h3>' + (rows.length ? '<ol>' + rows.map(function (x) {
-        return '<li' + link(ctx, '#player/' + x.p.id) + '>' + pTag(ctx, x.p) + '<b>' + cat.fmt(x.v) + '</b></li>';
+        return '<li' + link(ctx, '#player/' + x.p.id) + '>' + pTag(ctx, x.p) + '<b>' + cat.fmt(x.v) + '</b><i class="lbar" style="width:' + Math.max(0, x.v / top * 100).toFixed(1) + '%"></i></li>';
       }).join('') + '</ol>' : '<p class="sx-none">—</p>') + '</div>');
     });
     h.push('</div>');
@@ -556,6 +704,9 @@
         [String(units.length), 'Five-player units used'], [Math.round(units[0].poss) + '', 'Most-used unit, possessions']
       ]));
     }
+    if (best.length > 1) h.push(h2('Net per 100 possessions', 'units with 10+ possessions') + divBars(best.slice(0, 10).map(function (u) {
+      return { label: unitCell(ctx, u.ids).replace(/<small[\s\S]*$/, ''), v: (u.pf - u.pa) / u.poss * 100 };
+    }), sgn1));
     h.push(h2('Five-player units', 'most used first'));
     h.push('<table class="sx-t">' + unitHead() + '<tbody>' + unitRows(ctx, units.slice(0, 20), 10) + '</tbody></table>');
     if (S.starts.length) {
@@ -574,8 +725,9 @@
   // ---------- Game log ----------
   function gamesSheet(S, ctx) {
     if (!S.team.n) return sheet(ctx, 'Game log', '', '<p class="sx-none">No finished games yet.</p>');
-    var h = ['<table class="sx-t"><thead><tr><th class="l">Date</th><th class="l">Opponent</th><th class="l">Result</th><th>FG</th><th>FG%</th><th>3P</th><th>FT</th>' +
-      '<th>REB</th><th>OR</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>POSS</th><th title="Lead changes">LC</th><th class="l">Top scorer</th></tr></thead><tbody>'];
+    var h = [h2('Margin by game', 'wins up, losses down') + marginBars(S, ctx) + h2('Every game')];
+    h.push('<table class="sx-t"><thead><tr><th class="l">Date</th><th class="l">Opponent</th><th class="l">Result</th><th>FG</th><th>FG%</th><th>3P</th><th>FT</th>' +
+      '<th>REB</th><th>OR</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>PF</th><th>POSS</th><th title="Lead changes">LC</th><th class="l">Top scorer</th></tr></thead><tbody>');
     S.details.slice().reverse().forEach(function (d) {
       var l = d.c.team.us, top = null;
       Object.keys(d.c.players).forEach(function (id) { var x = d.c.players[id]; if (!top || x.pts > top.pts) top = { id: id, pts: x.pts }; });
@@ -665,6 +817,13 @@
       return '<div' + link(ctx, '#report/' + g.d.g.id) + '><i style="height:' + (g.line.pts / maxp * 100).toFixed(1) + '%"><b>' + g.line.pts + '</b></i><span>' +
         esc((g.d.g.opponent || '').slice(0, 9)) + '</span></div>';
     }).join('') + '</div>');
+    var glabs = s.games.map(function (g) { return shortOpp(g.d.g); });
+    h.push('<div class="sx-cols"><div>' + h2('Rebounds and assists by game') + lineChart(glabs, [
+      { name: 'Rebounds', cls: 'c', vals: s.games.map(function (g) { return reb(g.line); }) },
+      { name: 'Assists', cls: 'd', vals: s.games.map(function (g) { return g.line.ast; }) }], { min: 0, values: true, w: 420, h: 250 }) + '</div>');
+    h.push('<div>' + h2('Field goal % by game', 'dashed = season') + (ctx.on.fg ? lineChart(glabs, [
+      { name: 'FG%', cls: 'a', vals: s.games.map(function (g) { return g.line.fga ? g.line.fgm / g.line.fga * 100 : null; }) }],
+      { min: 0, max: 100, avg: l.fga ? l.fgm / l.fga * 100 : null, values: true, w: 420, h: 250, fmt: function (v) { return Math.round(v) + '%'; } }) : '<p class="sx-none">Shooting percentages are switched off in Settings.</p>') + '</div></div>');
     var qs = '';
     for (var q = 0; q < s.byQ.length; q++) qs += '<div><b>' + per(s.byQ[q], s.byQn[q]) + '</b><span>' + ctx.periodLabel(q + 1) + '</span></div>';
     h.push('<div class="sx-cols"><div>' + h2('Points by ' + (s.byQ.length === 2 ? 'half' : 'quarter'), 'average') + '<div class="sx-perq">' + qs + '</div>');

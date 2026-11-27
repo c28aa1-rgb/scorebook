@@ -51,8 +51,11 @@ working on that device.
 
 ## After the game
 
-The report has the line score, full box score, opponent scoring by jersey, game flow (lead changes,
-runs, timeouts) and a running-score grid like the paper book.
+The report has the key team numbers at a glance, the line score, a score-margin chart (who led and by
+how much through the game, with period dividers), the full box score, head-to-head bars, who scored (2s,
+3s and free throws for both teams), the opponent box score, the lineups used with their plus/minus, game
+flow (top performer, lead changes, runs, timeouts) and a running-score grid like the paper book. The charts
+are plain HTML/SVG, so they also show in the saved file, the published link and print.
 
 - **Email** opens the mail app with the score, scoring and team stats as text (plus the link if published).
 - **Publish link** uploads the report to a private, unlisted link (needs the publishing worker below).
@@ -72,10 +75,12 @@ everything to all games, home, away, wins, losses, the last 5 or 10, or scrimmag
 left out). Tabs:
 
 - **Team:** record (home/away, streak, last 5), points for and against, average scoring by quarter,
+  margin by game (wins up, losses down), points and shooting percentages game by game,
   shooting (2s, 3s, FTs, effective FG%, true shooting %), where the points come from, possessions and
   points per 100, assists and turnovers, game situations (close games, leading/trailing at half, scored
   first), fouls and free throws, results by opponent, and single-game team highs.
-- **Players:** per game, totals, shooting and advanced views; tap a column to sort. Advanced has game score,
+- **Players:** per game, totals, shooting and advanced views; tap a column to sort. Each view has a chart:
+  production bars (points, rebounds, assists, steals + blocks), a volume-vs-efficiency scatter, and on/off bars. Advanced has game score,
   share of team points, usage, assist-to-turnover, double-doubles, quarters played, plus/minus and on/off
   court net points per 100 possessions.
 - **Leaders:** top 5 in 18 categories and single-game highs.
@@ -99,7 +104,8 @@ with wide tables in landscape. Best from a laptop or with Save as PDF.
 
 ## Schedule
 
-Home → **Schedule**: upload a CSV (Google Sheets: File → Download → CSV; Excel: Save As → CSV) or paste the
+Home → **Schedule**, then **Add games** at the bottom (it opens on its own when the schedule is empty):
+upload a CSV (Google Sheets: File → Download → CSV; Excel: Save As → CSV) or paste the
 schedule, one game per line, then check the preview and add. Columns can be in any order (date, opponent,
 home/away, location, time), with or without a header row; lines like "Tue Dec 2 @ Trinity 4:30 PM" or
 "12/5 vs Riverdale" work too. Dates without a year are placed in the current season. Games already on the
