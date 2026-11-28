@@ -161,8 +161,8 @@ already played, shows it.
 
 Opponents are shown with their school's logo (in the schedule, the games list, the live game's top bar, reports, the
 finish animation, scouting reports and the stats tables), matched by name in `OPP_LOGOS` in `js/app.js`. The
-images in `icons/opp/` are round 256 px badges made from logos on each school's own website (the logos belong to
-the schools). A team without one gets a grey badge with its initials. To add one: save a 256 px round PNG as
+images in `icons/opp/` are round 256 px badges made from each team's athletics logo (from the team pages on MaxPreps,
+except Horace Mann's and Dwight's, from their own athletics pages; the logos belong to the schools). A team without one gets a grey badge with its initials. To add one: save a 256 px round PNG as
 `icons/opp/<name>.png`, add a line to `OPP_LOGOS`, and add the file to the list in `sw.js`.
 
 ## Test mode
