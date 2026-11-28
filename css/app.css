@@ -881,17 +881,20 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
    Timeline: backdrop 0–0.35 s, card 0.15–0.7 s, badges 0.3–0.9 s, scores count 0.6–1.9 s,
    stamp 2.0 s, confetti from 2.15 s (wins), periods 2.6 s+, top performer 3.0 s, button 3.3 s. */
 .fin { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 60; display: flex; align-items: center; justify-content: center; overflow: hidden;
-  background: radial-gradient(ellipse at 50% 42%, #1B2A6B 0%, #101820 62%); color: #fff; animation: fin-in 0.35s ease-out both; -webkit-user-select: none; user-select: none; }
+  background: radial-gradient(ellipse at 50% 42%, #1B2A6B 0%, #101820 62%); color: #fff; -webkit-user-select: none; user-select: none;
+  -webkit-clip-path: circle(0% at 50% 42%); clip-path: circle(0% at 50% 42%); animation: fin-reveal 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .fin.loss { background: radial-gradient(ellipse at 50% 42%, #2A3238 0%, #101820 62%); }
 .fin.tie { background: radial-gradient(ellipse at 50% 42%, #3A3018 0%, #101820 62%); }
 .fin.out { animation: fin-out 0.3s ease-in both; }
 .fin-rays { position: absolute; left: 50%; top: 42%; width: 220vmax; height: 220vmax; margin: -110vmax 0 0 -110vmax; opacity: 0.22;
   background: repeating-conic-gradient(from 0deg, rgba(78, 106, 247, 0.9) 0deg 7deg, transparent 7deg 20deg); animation: fin-spin 40s linear infinite, fin-fade 1.2s ease-out both; }
-.fin.loss .fin-rays { opacity: 0.08; background: repeating-conic-gradient(from 0deg, rgba(160, 175, 180, 0.9) 0deg 7deg, transparent 7deg 20deg); }
+/* A loss is quiet: no rays, a still, dim glow, and a softer badge. */
+.fin.loss .fin-rays { display: none; }
 .fin.tie .fin-rays { background: repeating-conic-gradient(from 0deg, rgba(245, 197, 66, 0.7) 0deg 7deg, transparent 7deg 20deg); }
 .fin-glow { position: absolute; left: 50%; top: 42%; width: 70vmin; height: 70vmin; margin: -35vmin 0 0 -35vmin; border-radius: 50%;
   background: radial-gradient(circle, rgba(78, 106, 247, 0.45), transparent 65%); animation: fin-pulse 3s ease-in-out 0.4s infinite; }
-.fin.loss .fin-glow { background: radial-gradient(circle, rgba(140, 155, 160, 0.25), transparent 65%); }
+.fin.loss .fin-glow { background: radial-gradient(circle, rgba(140, 155, 160, 0.16), transparent 65%); animation: none; }
+.fin.loss .fin-badge.us { box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.6), 0 0 18px rgba(78, 106, 247, 0.35); }
 .fin-card { position: relative; text-align: center; width: min(92vw, 52rem); padding: 1rem; animation: fin-rise 0.55s cubic-bezier(0.2, 0.9, 0.3, 1) 0.15s both; }
 .fin-eye { font-family: var(--f-num); font-weight: 700; letter-spacing: 0.32em; text-transform: uppercase; color: #9DB0FF; font-size: 1rem; }
 .fin.loss .fin-eye { color: #A9B6BA; }
@@ -931,8 +934,14 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
 /* Tap to skip: everything jumps to its final state. */
 .fin.skip *, .fin.still * { animation-delay: 0s !important; animation-duration: 0.01s !important; }
 .fin.skip .fin-rays, .fin.still .fin-rays { animation: none !important; }
+.fin.still { animation: none; -webkit-clip-path: none; clip-path: none; }
 .fin.skip .fin-confetti, .fin.still .fin-confetti { display: none; }
-@keyframes fin-in { from { opacity: 0; } to { opacity: 1; } }
+/* Comes in as a circle opening out from the scoreboard. */
+@keyframes fin-reveal { from { -webkit-clip-path: circle(0% at 50% 42%); clip-path: circle(0% at 50% 42%); opacity: 0.6; } to { -webkit-clip-path: circle(150% at 50% 42%); clip-path: circle(150% at 50% 42%); opacity: 1; } }
+/* A loss: the stamp settles in gently (no slam), and the score doesn't pulse. */
+.fin.loss .fin-stamp { animation: fin-settle 0.8s ease-out 2s both; }
+.fin.loss .fin-nums .n.top { animation: none; }
+@keyframes fin-settle { from { opacity: 0; transform: translateY(-0.6rem) scale(1.06); } to { opacity: 1; transform: none; } }
 @keyframes fin-out { to { opacity: 0; transform: scale(1.03); } }
 @keyframes fin-spin { to { transform: rotate(360deg); } }
 @keyframes fin-fade { from { opacity: 0; } }
