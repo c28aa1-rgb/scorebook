@@ -64,7 +64,13 @@
     '.rpt{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
     '.rpt .rpt-logo{flex:none;width:3.6rem;height:3.6rem;align-self:center;margin-right:0.2rem}',
     '.rpt .rpt-title{flex:1;min-width:0}',
-    '.rpt .rpt-page{color:var(--accent)}',
+    '.rpt .rpt-band{display:flex;align-items:center;gap:0.6rem;margin:1.5rem 0 0.2rem;padding:0.5rem 0.8rem;border-radius:0.375rem;color:#fff;font-family:"Roboto Condensed",Bahnschrift,"Arial Narrow",sans-serif}',
+    '.rpt .rpt-band:first-child{margin-top:0}',
+    '.rpt .rpt-band b{font-size:1.15rem;letter-spacing:0.14em;text-transform:uppercase}',
+    '.rpt .rpt-band span{margin-left:auto;font-size:0.8rem;opacity:0.85}',
+    '.rpt .rpt-band img{width:1.9rem;height:1.9rem;border-radius:50%;background:#fff}',
+    '.rpt .rpt-band.game{background:var(--ink)}.rpt .rpt-band.us{background:var(--accent)}.rpt .rpt-band.them{background:#4A5A60}',
+    '.rpt h2 small{font-weight:400;letter-spacing:0.04em;text-transform:none;color:var(--ink2);margin-left:0.3rem}',
     '.rpt .rpt-ologo{flex:none;width:3.2rem;height:3.2rem;border-radius:50%;align-self:center;box-shadow:0 0 0 1px var(--rule)}',
     '.rpt .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.4rem,1fr));margin-top:0.9rem;border-top:1px solid var(--rule);border-left:1px solid var(--rule)}',
     '.rpt .kp div{padding:0.45rem 0.6rem;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}',
@@ -117,6 +123,8 @@
     ' .rpt .mtip,.rpt .mguide,.rpt .mdot{display:none!important}',
     ' .rpt h2{break-after:avoid}',
     ' .rpt+.rpt{break-before:page;page-break-before:always}',
+    // Each team's stats start a new sheet (Game, then Dalton, then the opponent).
+    ' .rpt .rpt-band.us,.rpt .rpt-band.them{break-before:page;page-break-before:always;margin-top:0}',
     ' .rpt table,.rpt .led-blk,.rpt .mchart,.rpt .rpt-grid>div,.rpt .kp{break-inside:avoid}}'
   ].join('\n');
 
@@ -557,16 +565,7 @@
       '<td>' + t.pf + '</td></tr></tbody></table></div>' + staffLine(c, 'them'));
     return h.join('');
   }
-  // Fouls and timeouts by period, both teams (bonus situations at a glance).
-  function foulsTimeouts(game, meta, c) {
-    var f = foulsByPeriod(game, c.periods), head = '', a = '', b = '', q;
-    for (q = 0; q < c.periods; q++) { head += '<th>' + C.periodLabel(q + 1, c.rules) + '</th>'; a += '<td>' + f.them[q] + '</td>'; b += '<td>' + f.us[q] + '</td>'; }
-    var to = c.timeoutLog.filter(function (t) { return t.tm === 'them'; }).map(function (t) { return C.periodLabel(t.q, c.rules) + (t.v === 'short' ? ' (30s)' : ''); });
-    return '<div class="tw"><table><thead><tr><th class="l">Team fouls</th>' + head + '<th class="b">Total</th></tr></thead><tbody>' +
-      '<tr><td class="l">' + esc(oppName(game)) + '</td>' + a + '<td class="b">' + c.team.them.pf + '</td></tr>' +
-      '<tr><td class="l">' + esc(meta.team.name) + '</td>' + b + '<td class="b">' + c.team.us.pf + '</td></tr></tbody></table></div>' +
-      '<p class="key">' + esc(oppName(game)) + ' timeouts: ' + (to.length ? esc(to.join(', ')) : 'none') + '.</p>';
-  }
+
 
   function render(game, meta, opts) {
     opts = opts || {};
@@ -576,44 +575,71 @@
     var status = (game.type === 'scrimmage' ? 'Scrimmage · ' : '') +
       (game.status === 'final' ? (game.type === 'scrimmage' ? 'Final' : resultWord(c, c.rules)) : 'In progress · ' + C.periodLabel(c.quarter, c.rules));
     var h = [], side = opts.side === 'us' || opts.side === 'them' ? opts.side : 'both';
-    var pageName = side === 'us' ? meta.team.name : side === 'them' ? oppName(game) : '';
-    h.push('<article class="rpt' + (side !== 'both' ? ' rpt-' + side : '') + '">');
-    h.push('<header class="rpt-hd">' + (opts.logo ? '<img class="rpt-logo" src="' + esc(opts.logo) + '" alt="">' : '') + '<div class="rpt-title"><div class="rpt-eyebrow">' + esc(status) + ' · ' +
-      (game.homeAway === 'away' ? 'Away' : 'Home') + (pageName ? ' · <span class="rpt-page">' + esc(pageName) + ' page</span>' : '') + '</div>');
-    h.push('<h1><span class="' + (us > them ? 'win' : '') + '">' + esc(meta.team.name) + ' ' + us +
-      '</span><span class="vs">–</span><span class="' + (them > us ? 'win' : '') + '">' + them + ' ' +
-      esc(oppName(game)) + '</span></h1></div>');
-    h.push((opts.oppLogo ? '<img class="rpt-ologo" src="' + esc(opts.oppLogo) + '" alt="">' : '') + '<div class="rpt-meta"><b>' + esc(fmtDate(game.date)) + '</b>' + esc(game.location || '') + '</div></header>');
-    h.push(side === 'them' ? oppGlance(game, meta, c) : glance(game, meta, c));
-    h.push('<h2>Score by period</h2>' + lineScore(game, meta, c));
-    if (c.rules.scoreResets) h.push('<p class="pw">' + esc(periodsWonText(game, meta, c)) + '</p>');
-    var mc = marginChart(game, meta, c, names);
-    if (mc) h.push('<h2>Score margin</h2>' + mc);
-    if (side === 'them') {
-      var oRows = Object.keys(c.opp).map(function (k) { return { l: c.opp[k], label: k === '' ? '<span class="dim">Team</span>' : '<span class="jn">#' + esc(k) + '</span>' }; });
-      h.push('<h2>' + esc(oppName(game)) + ' by jersey</h2>' + oppBoxFull(game, c));
-      h.push('<div class="rpt-grid"><div><h2>Who scored · ' + esc(oppName(game)) + '</h2>' + scorerBars(oRows) + '</div><div><h2>Head to head</h2>' + headToHead(game, meta, c) + '</div></div>');
-      h.push('<h2>Fouls and timeouts</h2>' + foulsTimeouts(game, meta, c));
-      h.push('<h2>Running score</h2>' + ledger(game, meta, c));
-      h.push('<div class="foot"><span>' + esc(meta.team.name) + ' scorebook</span><span>' + esc(c.rules.name) + ' rules</span></div></article>');
-      return h.join('');
+    // opts.shared === false: the opponent's page printed after ours, so only their own numbers (no repeats).
+    var onlyTheirs = side === 'them' && opts.shared === false;
+    var foot = '<div class="foot"><span>' + esc(meta.team.name) + ' scorebook</span><span>' + esc(c.rules.name) + ' rules</span></div>';
+    function band(cls, title, note, logo) {
+      return '<div class="rpt-band ' + cls + '">' + (logo ? '<img src="' + esc(logo) + '" alt="">' : '') + '<b>' + title + '</b>' + (note ? '<span>' + note + '</span>' : '') + '</div>';
     }
-    h.push('<h2>' + esc(meta.team.name) + '</h2>' + ourBox(game, meta, c, names));
+    h.push('<article class="rpt' + (side !== 'both' ? ' rpt-' + side : '') + '">');
+    if (onlyTheirs) {
+      h.push(band('them', esc(oppName(game)) + ' stats', 'Opponent · ' + esc(meta.team.name) + ' ' + us + '–' + them + ' ' + esc(oppName(game)) + ' · ' + esc(fmtDate(game.date)), opts.oppLogo));
+    } else {
+      h.push('<header class="rpt-hd">' + (opts.logo ? '<img class="rpt-logo" src="' + esc(opts.logo) + '" alt="">' : '') + '<div class="rpt-title"><div class="rpt-eyebrow">' + esc(status) + ' · ' +
+        (game.homeAway === 'away' ? 'Away' : 'Home') + '</div>');
+      h.push('<h1><span class="' + (us > them ? 'win' : '') + '">' + esc(meta.team.name) + ' ' + us +
+        '</span><span class="vs">–</span><span class="' + (them > us ? 'win' : '') + '">' + them + ' ' +
+        esc(oppName(game)) + '</span></h1></div>');
+      h.push((opts.oppLogo ? '<img class="rpt-ologo" src="' + esc(opts.oppLogo) + '" alt="">' : '') + '<div class="rpt-meta"><b>' + esc(fmtDate(game.date)) + '</b>' + esc(game.location || '') + '</div></header>');
+    }
+    var mc = marginChart(game, meta, c, names);
     var ourRows = boxPlayers(game, meta, c).map(function (r) { return { l: r.line, label: '<span class="jn">' + esc(r.num) + '</span>' + esc(playerName(r.p, names === 'jersey' ? 'first' : names)) }; });
     var oppRows = Object.keys(c.opp).map(function (k) { return { l: c.opp[k], label: k === '' ? '<span class="dim">Team</span>' : '<span class="jn">#' + esc(k) + '</span>' }; });
-    h.push('<div class="rpt-grid"><div><h2>Head to head</h2>' + headToHead(game, meta, c) + '</div><div><h2>Game flow</h2>' + flowBlock(game, meta, c, names) + '</div></div>');
     var lu = lineupsBlock(game, meta, c);
-    if (side === 'us') {
-      h.push('<div class="rpt-grid"><div><h2>Who scored · ' + esc(meta.team.short || meta.team.name) + '</h2>' + scorerBars(ourRows) + '</div>' + (lu ? '<div><h2>Lineups used</h2>' + lu + '</div>' : '') + '</div>');
-    } else {
+
+    if (side === 'both') {
+      // One page with everything (saved files and published links).
+      h.push(glance(game, meta, c));
+      h.push('<h2>Score by period</h2>' + lineScore(game, meta, c));
+      if (c.rules.scoreResets) h.push('<p class="pw">' + esc(periodsWonText(game, meta, c)) + '</p>');
+      if (mc) h.push('<h2>Score margin</h2>' + mc);
+      h.push('<h2>' + esc(meta.team.name) + '</h2>' + ourBox(game, meta, c, names));
+      h.push('<div class="rpt-grid"><div><h2>Head to head</h2>' + headToHead(game, meta, c) + '</div><div><h2>Game flow</h2>' + flowBlock(game, meta, c, names) + '</div></div>');
       h.push('<div class="rpt-grid"><div><h2>Who scored · ' + esc(meta.team.short || meta.team.name) + '</h2>' + scorerBars(ourRows) + '</div><div><h2>Who scored · ' + esc(oppName(game)) + '</h2>' + scorerBars(oppRows) + '</div></div>');
       h.push('<div class="rpt-grid"><div><h2>' + esc(oppName(game)) + '</h2>' + oppBox(game, c) + '</div>');
       h.push(lu ? '<div><h2>Lineups used</h2>' + lu + '</div></div>' : '</div>');
+      h.push('<h2>Running score</h2>' + ledger(game, meta, c));
+      h.push(foot + '</article>');
+      return h.join('');
     }
-    h.push('<h2>Running score</h2>' + ledger(game, meta, c));
-    h.push('<div class="foot"><span>' + esc(meta.team.name) + ' scorebook</span><span>' +
-      esc(c.rules.name) + ' rules</span></div>');
-    h.push('</article>');
+
+    // The game itself (both teams): on each page on screen, and on ours when both pages are printed.
+    if (!onlyTheirs) {
+      h.push(band('game', 'Game', 'both teams'));
+      h.push('<h2>Score by period</h2>' + lineScore(game, meta, c));
+      if (c.rules.scoreResets) h.push('<p class="pw">' + esc(periodsWonText(game, meta, c)) + '</p>');
+      if (mc) h.push('<h2>Score margin</h2>' + mc);
+      h.push('<div class="rpt-grid"><div><h2>Head to head</h2>' + headToHead(game, meta, c) + '</div><div><h2>Game flow</h2>' + flowBlock(game, meta, c, names) + '</div></div>');
+      h.push('<h2>Running score</h2>' + ledger(game, meta, c));
+    }
+
+    if (side === 'us') {
+      h.push(band('us', esc(meta.team.name) + ' stats', '', opts.logo));
+      h.push('<h2>' + esc(meta.team.name) + ' at a glance</h2>' + glance(game, meta, c));
+      h.push('<h2>' + esc(meta.team.name) + ' box score</h2>' + ourBox(game, meta, c, names));
+      h.push('<div class="rpt-grid"><div><h2>Who scored · ' + esc(meta.team.name) + '</h2>' + scorerBars(ourRows) + '</div>' +
+        (lu ? '<div><h2>' + esc(meta.team.name) + ' lineups used</h2>' + lu + '</div>' : '') + '</div>');
+    } else {
+      if (!onlyTheirs) h.push(band('them', esc(oppName(game)) + ' stats', 'Opponent', opts.oppLogo));
+      var outs = Object.keys(c.opp).filter(function (k) { return k !== '' && C.outReason(c.opp[k], c.rules); });
+      var tos = c.timeoutLog.filter(function (t) { return t.tm === 'them'; }).map(function (t) { return C.periodLabel(t.q, c.rules) + (t.v === 'short' ? ' (30s)' : ''); });
+      h.push('<h2>' + esc(oppName(game)) + ' at a glance</h2>' + oppGlance(game, meta, c));
+      h.push('<h2>' + esc(oppName(game)) + ' box score <small>by jersey, points in each period</small></h2>' + oppBoxFull(game, c) +
+        '<p class="key">' + (outs.length ? 'Fouled out or ejected: ' + outs.map(function (k) { return '#' + esc(k); }).join(', ') + '. ' : '') +
+        'Timeouts: ' + (tos.length ? esc(tos.join(', ')) : 'none') + '.</p>');
+      h.push('<h2>Who scored · ' + esc(oppName(game)) + '</h2>' + scorerBars(oppRows));
+    }
+    h.push(foot + '</article>');
     return h.join('');
   }
 

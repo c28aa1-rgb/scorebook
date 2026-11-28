@@ -61,10 +61,12 @@ scores without leaving the game (also on view-only devices).
 WIN / LOSS / TIE stamp (confetti for a win), the period-by-period results and the top performer. Tap once to
 skip to the end; **See the report** (or another tap) closes it. It plays only when you end a game. With reduced motion turned on, it shows the finished card without animating.
 
-A game's report has two pages, picked by the tabs at the top: **Dalton** (everything below) and the **opponent**
-(their numbers at a glance, their box score by jersey with points in each quarter, who scored for them, head to head,
-team fouls by quarter and their timeouts, and the running score). **Print** asks for either page or both (one
-sheet each). Saved files and published links carry everything on one page.
+A game's report has two pages, picked by the tabs at the top: **Dalton** and the **opponent**. Each starts with a
+**Game** section for both teams (line score, score margin, head to head, game flow, running score), then a labeled
+**Dalton stats** or **<opponent> stats** section (at a glance, box score, who scored; ours adds lineups, theirs is by
+jersey with points in each quarter, who fouled out and their timeouts). **Print** asks for either page or both.
+**Both pages** prints the Game sheet once, then a Dalton stats sheet and an opponent stats sheet, each under a
+colored banner, with nothing repeated. Saved files and published links carry everything on one page.
 
 The report has the key team numbers at a glance, the line score, a score-margin chart (who led and by
 how much through the game, with period dividers; hover over it, or touch and slide along it, to see the

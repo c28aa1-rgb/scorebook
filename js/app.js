@@ -1642,7 +1642,7 @@
     if (ui.reportFor !== g.id) { ui.reportFor = g.id; ui.reportSide = 'us'; }   // a different game opens on our page
     var side = ui.reportSide === 'them' ? 'them' : 'us';
     h.push('<div class="rpt-tabs no-print"><div class="seg"><button data-a="reportSide" data-x="us" class="' + (side === 'us' ? 'on' : '') + '">' + esc(meta.team.name) + '</button>' +
-      '<button data-a="reportSide" data-x="them" class="' + (side === 'them' ? 'on' : '') + '">' + oppBadge(g.opponent, 'tab') + esc(g.opponent || 'Opponent') + '</button></div></div>');
+      '<button data-a="reportSide" data-x="them" class="' + (side === 'them' ? 'on' : '') + '">' + esc(g.opponent || 'Opponent') + '</button></div></div>');
     h.push('<div class="rpt-bar no-print">');
     h.push('<div class="seg" style="height:2.6rem;flex:0 0 18rem"><button data-a="repNames" data-x="jersey" class="' + (names === 'jersey' ? 'on' : '') + '">Jersey only</button>' +
       '<button data-a="repNames" data-x="first" class="' + (names === 'first' ? 'on' : '') + '">First name</button>' +
@@ -2292,7 +2292,8 @@
     var g = gameById(route.id);
     if (!g) return;
     var names = ui.reportNames || meta.settings.names || 'first', o = { names: names, logo: LOGO, oppLogo: oppLogo(g.opponent) };
-    var sides = x === 'both' ? ['us', 'them'] : [x], html = sides.map(function (sd) { o.side = sd; return R.render(g, meta, o); }).join('');
+    // Both: our page (with the game sections), then only their own numbers, so nothing prints twice.
+    var sides = x === 'both' ? ['us', 'them'] : [x], html = sides.map(function (sd) { o.side = sd; o.shared = !(x === 'both' && sd === 'them'); return R.render(g, meta, o); }).join('');
     var root = document.getElementById('print-root');
     if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
     root.innerHTML = html;
