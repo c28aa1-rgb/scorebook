@@ -8,6 +8,7 @@
   var C = window.SBCore, DB = window.SBDB, R = window.SBReport, esc = R.esc;
   // The logo as a data URL too, so saved and published reports carry it inside the file.
   var LOGO = 'icons/tiger.png', logoData = '';
+  (function () { var st = document.createElement('style'); st.textContent = R.CSS; document.head.appendChild(st); })();
   try {
     fetch(LOGO).then(function (r) { return r.blob(); }).then(function (b) {
       var fr = new FileReader(); fr.onload = function () { logoData = String(fr.result); }; fr.readAsDataURL(b);
@@ -82,6 +83,50 @@
 
   // Every save goes to the tablet first, then to the cloud when sync is on. The updated time
   // decides which copy wins when two tablets have changed the same thing.
+  // ---------- One scorer per live game ----------
+  // The tablet that opens a live game becomes its scorer (game.scorer). Other signed-in devices see it
+  // live but view-only, with Take over scoring. Leaving the game frees it; a claim goes stale after
+  // 3 minutes without activity (e.g. the tablet went to sleep), so another device can pick it up.
+  var DEVICE_ID = (function () {
+    try { var d = localStorage.getItem('sb-device-id'); if (!d) { d = uid() + randomId(4); localStorage.setItem('sb-device-id', d); } return d; }
+    catch (e) { return 'dev-' + uid(); }
+  })();
+  function guessDeviceName() {
+    var ua = navigator.userAgent || '';
+    if (/Silk|KF[A-Z]{2,4}/.test(ua)) return 'Fire tablet';
+    if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'iPad';
+    if (/iPhone/.test(ua)) return 'iPhone';
+    if (/Android/.test(ua)) return 'Android tablet';
+    return /Windows|Macintosh|Linux/.test(ua) ? 'Computer' : 'Another device';
+  }
+  function deviceName() { try { return localStorage.getItem('sb-device-name') || guessDeviceName(); } catch (e) { return guessDeviceName(); } }
+  var SCORER_STALE = 3 * 60 * 1000;
+  function scorerOf(g) { var s = g && g.scorer; return s && s.device && Date.now() - (s.at || 0) < SCORER_STALE ? s : null; }
+  function viewOnly(g) {
+    if (!syncing || testMode || !g || g.status !== 'live') return false;
+    var s = scorerOf(g);
+    return !!s && s.device !== DEVICE_ID;
+  }
+  function claimGame(g) {
+    if (!syncing || testMode || !g || g.status !== 'live' || viewOnly(g)) return;
+    var u = Cloud.currentUser();
+    g.scorer = { device: DEVICE_ID, name: deviceName(), who: (u && u.email) || '', at: Date.now() };
+    saveGame(g);
+  }
+  function releaseGame(id) {
+    var g = gameById(id), s = g && g.scorer;
+    if (!syncing || testMode || !g || g.status !== 'live' || !s || s.device !== DEVICE_ID) return;
+    g.scorer = null;
+    saveGame(g);
+  }
+  // Keeps the claim fresh while the game is on screen.
+  setInterval(function () {
+    if (route.name !== 'game' || document.visibilityState === 'hidden') return;
+    var g = gameById(route.id);
+    if (g && g.status === 'live' && g.scorer && g.scorer.device === DEVICE_ID) { g.scorer.at = Date.now(); saveGame(g); }
+  }, 60000);
+  function agoText(t) { var s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? s + ' s ago' : Math.round(s / 60) + ' min ago'; }
+
   function saveMeta() {
     if (testMode) return;
     delete meta.fresh;
@@ -96,7 +141,7 @@
   function markGone(id) { if (id) { meta.gone = meta.gone || {}; meta.gone[id] = Date.now(); } }
 
   function saveGame(g) {
-    if (testMode) return;
+    if (testMode || viewOnly(g)) return;
     g.updated = Date.now();
     if (syncing) g.synced = true;
     DB.saveGame(g, function (err) { if (err) toast('Could not save game. Storage may be full.'); });
@@ -421,7 +466,15 @@
     Cloud.listen(onRemoteMeta, function (rg) {
       if (testMode) return;
       var lg = gameById(rg.id);
-      if (!lg || (rg.updated || 0) > (lg.updated || 0)) { takeRemoteGame(rg); refresh(); }
+      if (!lg || (rg.updated || 0) > (lg.updated || 0)) {
+        var wasMine = lg && lg.scorer && lg.scorer.device === DEVICE_ID;
+        takeRemoteGame(rg);
+        if (wasMine && route.name === 'game' && route.id === rg.id && viewOnly(rg)) {
+          ui.drawer = null;
+          toast('Scoring moved to ' + (rg.scorer.name || 'another device') + '. This device is view-only now.', 5000);
+        }
+        refresh();
+      }
     }, function (id) {
       var gone = gameById(id);
       if (testMode || !gone || gone.status === 'final') return;
@@ -469,14 +522,16 @@
   function go(hash) { if (location.hash === hash) onRoute(); else location.hash = hash; }
 
   function onRoute() {
-    var parts = (location.hash || '#home').slice(1).split('/');
+    var parts = (location.hash || '#home').slice(1).split('/'), prevGame = route.name === 'game' ? route.id : null;
     route = { name: parts[0] || 'home', id: parts[1] || null };
+    if (prevGame && !(route.name === 'game' && route.id === prevGame)) releaseGame(prevGame);
     ui.drawer = null; ui.prompt = null; ui.armed = null;
     document.documentElement.classList.remove('print-stats');
     if (route.name === 'game') {
       var g = gameById(route.id);
       if (!g) return go('#home');
       if (g.status === 'final') return go('#report/' + g.id);
+      claimGame(g);
     }
     fitScale();
     render();
@@ -562,7 +617,8 @@
       var c = C.computeGame(g);
       h.push('<button class="live-card" data-a="go" data-x="#game/' + g.id + '"><span class="sc">' + c.score.us + '–' +
         c.score.them + '</span><div><b>Resume ' + (g.type === 'scrimmage' ? 'scrimmage ' : '') + 'vs ' + esc(g.opponent) + '</b><small>' +
-        C.periodLabel(g.quarter, c.rules) + ' · ' + esc(R.fmtDate(g.date)) + '</small></div><span class="btn sm">Resume</span></button>');
+        C.periodLabel(g.quarter, c.rules) + ' · ' + esc(R.fmtDate(g.date)) + (viewOnly(g) ? ' · scoring on ' + esc(scorerOf(g).name) : '') + '</small></div><span class="btn sm">' +
+        (viewOnly(g) ? 'Watch' : 'Resume') + '</span></button>');
     });
     h.push('<div class="record"><div><b class="num">' + s.team.w + '–' + s.team.l + '</b><span>Record</span></div>' +
       '<div><b class="num">' + (s.team.gp ? (s.team.pf / s.team.gp).toFixed(1) : '—') + '</b><span>Pts / game</span></div>' +
@@ -848,6 +904,25 @@
     return fo.col ? focusStatCol(fo.col) : focusStatLabel(fo.label);
   }
 
+  // ----- Scouting report (an opponent, from this season's games against them) -----
+  function hasPlayed(name) {
+    var k = oppKey(name);
+    return !!k && seasonGames().some(function (g) { return g.status === 'final' && oppKey(g.opponent) === k; });
+  }
+  function scoutLink(name, cls) {
+    return '<button class="btn sm ghost' + (cls ? ' ' + cls : '') + '" data-a="go" data-x="#scout/' + encodeURIComponent(name) + '">Scout</button>';
+  }
+  screens.scout = function () {
+    var name = decodeURIComponent(route.id || ''), key = oppKey(name);
+    var list = seasonGames().filter(function (g) { return g.status === 'final' && oppKey(g.opponent) === key; });
+    var shown = list.length ? list[0].opponent : name, ctx = statsCtx(false);
+    ctx.filter = 'This season' + (list.some(function (g) { return g.type === 'scrimmage'; }) ? ' (games and scrimmages)' : '');
+    var S = window.SBStatsCalc.compute(list, seasonPlayers());
+    var h = [pageHead('Scouting · ' + shown, '<button class="back" data-a="goBack">‹ Back</button>', '<button class="btn sm" data-a="print">Print</button>')];
+    h.push('<div class="sx-wrap">' + window.SBStats.scout(S, ctx, shown) + '</div>');
+    return h.join('');
+  };
+
   screens.stats = function () {
     var tab = route.id || 'team', season = find(meta.seasons, meta.currentSeasonId) || {}, SS = window.SBStats;
     ui.lastStats = tab;
@@ -928,6 +1003,7 @@
     return '<li class="sch-row"><span class="sch-when"><b>' + esc(R.fmtDate(x.date).replace(/, \d{4}$/, '')) + '</b><small>' + esc(weekday(x.date)) +
       (x.time ? ' · ' + esc(x.time) : '') + '</small></span><span class="op">' + (x.homeAway === 'away' ? '@ ' : 'vs ') + esc(x.opponent) +
       (x.type === 'scrimmage' ? ' <span class="tag-scrim">Scrimmage</span>' : '') + (x.location ? '<small>' + esc(x.location) + '</small>' : '') + '</span>' + right +
+      (hasPlayed(x.opponent) ? scoutLink(x.opponent) : '') +
       (full ? '<button class="btn sm danger' + (armed ? ' armed' : '') + '" data-a="rmSched" data-x="' + x.id + '">' + (armed ? 'Confirm' : 'Remove') + '</button>' : '') + '</li>';
   }
 
@@ -1084,7 +1160,8 @@
     keys += '<button class="fn" data-a="oppKey" data-x="back" aria-label="Delete digit">⌫</button><button data-a="oppKey" data-x="0">0</button>' +
       '<button class="add" data-a="oppKey" data-x="add"' + (kp ? '' : ' disabled') + '>Add</button>';
     return '<div class="opp-pad"><div class="opp-disp' + (kp ? '' : ' empty') + '">#<b>' + (esc(kp) || '–') + '</b></div><div class="opp-keys">' + keys + '</div></div>' +
-      '<div class="opp-list"><div class="opp-count"><b>' + nums.length + '</b><span>number' + (nums.length === 1 ? '' : 's') + ' entered</span>' +
+      '<div class="opp-list">' + (hasPlayed(draft.opponent) ? '<button class="btn sm ghost sc-link" data-a="go" data-x="#scout/' + encodeURIComponent(draft.opponent.trim()) +
+        '">Scouting report: ' + esc(draft.opponent.trim()) + ' ›</button>' : '') + '<div class="opp-count"><b>' + nums.length + '</b><span>number' + (nums.length === 1 ? '' : 's') + ' entered</span>' +
       '<em>' + esc(meta.team.name) + ' roster: ' + mine + '</em></div>' +
       (nums.length ? '<div class="opp-chips">' + nums.map(function (n) {
         return '<button class="opp-chip' + (ui.oppFlash === n ? ' flash' : '') + '" data-a="oppRemove" data-x="' + esc(n) + '" aria-label="Remove number ' + esc(n) + '">#' + esc(n) + '<i>×</i></button>';
@@ -1158,8 +1235,8 @@
 
   // ----- Live game -----
   screens.game = function () {
-    var g = gameById(route.id), c = C.computeGame(g), r = c.rules, wide = ui.wide;
-    var h = ['<div class="lv' + (wide ? ' wide' : '') + '">'];
+    var g = gameById(route.id), c = C.computeGame(g), r = c.rules, wide = ui.wide, vo = viewOnly(g);
+    var h = ['<div class="lv' + (wide ? ' wide' : '') + (vo ? ' view-only' : '') + '">'];
     h.push('<header class="lv-top">');
     h.push('<button class="lv-home" data-a="go" data-x="#home"><span class="ic">☰</span>Games</button>');
     if (fsAvailable()) h.push('<button class="lv-fs" data-a="fullscreen"><span class="fs-ic"></span>' + (fsActive() ? 'Exit' : 'Full') + '</button>');
@@ -1194,8 +1271,14 @@
       '<button class="btn" data-a="drawer" data-x="log">Play log</button>' +
       (ui.timer && ui.timer.game === g.id ? timerChip(g) :
         '<div class="last">' + (last ? 'Last: <b>' + esc(describe(last, g)) + '</b>' : 'Tap a player, then what they did.') + '</div>') +
-      '<button class="btn" data-a="go" data-x="#report/' + g.id + '">Box score</button></footer>');
+      '<button class="btn" data-a="drawer" data-x="box">Box score</button></footer>');
     h.push('</div>');
+    if (vo) {
+      var sc = scorerOf(g), armed = ui.armed === 'takeover';
+      h.push('<div class="vo-bar"><span class="vo-dot"></span><span><b>View only</b> · ' + esc(sc.name || 'Another device') + (sc.who ? ' <small>(' + esc(sc.who) + ')</small>' : '') +
+        ' is scoring this game · updated ' + agoText(sc.at) + '</span><button class="btn sm' + (armed ? ' danger armed' : ' pri') + '" data-a="takeOver">' +
+        (armed ? 'Tap again to take over' : 'Take over scoring') + '</button></div>');
+    }
     if (ui.drawer) h.push(drawer(g, c));
     return h.join('');
   };
@@ -1410,6 +1493,15 @@
       h += '<button class="btn ghost" data-a="drawer" data-x="rules">Rules for this game<small>timeouts, fouls, periods</small></button>';
       h += '</div>';
       return sheet('Period · now ' + C.periodLabel(q, r), h, '', true);
+    }
+    if (d === 'box') {
+      var bt = ui.boxTab === 'them' ? 'them' : 'us';
+      h = '<div class="seg box-tabs"><button data-a="boxTab" data-x="us" class="' + (bt === 'us' ? 'on' : '') + '">' + esc(meta.team.name) + '</button>' +
+        '<button data-a="boxTab" data-x="them" class="' + (bt === 'them' ? 'on' : '') + '">' + esc(g.opponent || 'Opponent') + '</button></div>' +
+        R.liveBox(g, meta, meta.settings.names || 'first', bt);
+      return sheet('Box score · ' + meta.team.name + ' ' + c.score.us + ', ' + (g.opponent || 'Opponent') + ' ' + c.score.them, h,
+        (hasPlayed(g.opponent) ? '<button class="btn ghost" data-a="go" data-x="#scout/' + encodeURIComponent(g.opponent) + '">Scouting report</button>' : '') +
+        '<button class="btn ghost" data-a="go" data-x="#report/' + g.id + '">Full report</button><button class="btn pri" data-a="closeDrawer">Done</button>');
     }
     if (d === 'bench' || d === 'replace') {
       var court = g.onCourt.filter(Boolean), bench = seasonPlayers().filter(function (p) { return court.indexOf(p.id) < 0; });
@@ -1649,6 +1741,8 @@
       var u = Cloud.currentUser(), word = { synced: 'Everything is synced.', syncing: 'Syncing…', offline: 'Offline. Changes are saved on this tablet and will sync when it’s back online.' }[syncState];
       h.push('<h2>Account and sync</h2><p class="note">Signed in as <b>' + esc(u && u.email) + '</b>. ' + word +
         ' Every change is saved to the cloud, so signing in on another tablet shows the same games.</p>' +
+        '<div class="form"><div class="fld"><label for="s-dev">This device’s name</label><input id="s-dev" data-devname="1" value="' + esc(deviceName()) +
+        '" placeholder="e.g. Fire tablet" autocomplete="off"></div></div><p class="note">Shown on other devices while this one is scoring a game (only one device can score a game at a time).</p>' +
         '<div class="form"><button class="btn danger' + (ui.armed === 'signout' ? ' armed' : '') + '" data-a="signOut">' +
         (ui.armed === 'signout' ? 'Confirm sign out' : 'Sign out') + '</button></div>');
     }
@@ -2140,6 +2234,19 @@
     if (x === 'keypad') ui.kp = '';
     render();
   };
+  actions.takeOver = function () {
+    var g = gameById(route.id);
+    if (!g) return;
+    if (ui.armed !== 'takeover') { ui.armed = 'takeover'; return render(); }
+    ui.armed = null;
+    var u = Cloud.currentUser();
+    g.scorer = { device: DEVICE_ID, name: deviceName(), who: (u && u.email) || '', at: Date.now() };
+    saveGame(g);
+    toast('You’re scoring this game now.');
+    render();
+  };
+  actions.boxTab = function (x) { ui.boxTab = x; render(); };
+  actions.goBack = function () { if (window.history.length > 1) window.history.back(); else go('#home'); };
   actions.closeDrawer = function () { ui.drawer = null; ui.armed = null; ui.kpFor = null; ui.pendSub = null; ui.subOut = null; ui.techBench = false; ui.lineup = null; render(); };
 
   // Technicals off the court (team name, then TECH): head coach, assistant, a bench player or the team.
@@ -2567,7 +2674,9 @@
   };
 
   // ---------- event wiring ----------
-  var TWO_TAP = { rmEvent: 1, rmPlayer: 1, removeSample: 1, deleteGame: 1, rmSched: 1, signOut: 1, restoreHistory: 1 };
+  var TWO_TAP = { rmEvent: 1, rmPlayer: 1, removeSample: 1, deleteGame: 1, rmSched: 1, signOut: 1, restoreHistory: 1, takeOver: 1 };
+  // What a view-only device may still do on the live screen (look, not change).
+  var VIEW_OK = { go: 1, goBack: 1, fullscreen: 1, takeOver: 1, closeDrawer: 1, drawer: 1, side: 1, pick: 1, oppPick: 1, boxTab: 1 };
   function closest(el, attr) {
     while (el && el !== document) { if (el.getAttribute && el.getAttribute(attr) !== null) return el; el = el.parentNode; }
     return null;
@@ -2582,6 +2691,11 @@
     var a = el.getAttribute('data-a');
     if (!actions[a]) return;
     ev.preventDefault();
+    if (route.name === 'game' && !VIEW_OK[a] && viewOnly(gameById(route.id))) {
+      var sc = scorerOf(gameById(route.id));
+      toast('View only: ' + ((sc && sc.name) || 'another device') + ' is scoring this game. Tap Take over scoring to score here.', 4000);
+      return;
+    }
     // Any action other than answering the prompt dismisses it.
     if (a !== 'promptPick' && a !== 'promptSkip') ui.prompt = null;
     // Two-tap confirm buttons keep their armed state; any other tap disarms them.
@@ -2594,6 +2708,9 @@
     if ((k = el.getAttribute('data-edit'))) {
       var p = player(el.getAttribute('data-x'));
       if (p) { p[k] = el.value.trim(); saveMeta(); }
+    } else if (el.getAttribute('data-devname')) {
+      try { if (el.value.trim()) localStorage.setItem('sb-device-name', el.value.trim().slice(0, 30)); else localStorage.removeItem('sb-device-name'); } catch (e) {}
+      toast('Saved: this device is “' + deviceName() + '”.');
     } else if (el.getAttribute('data-statfilter')) {
       ui.statFilter = el.value; render();
     } else if ((k = el.getAttribute('data-draft'))) {

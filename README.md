@@ -49,6 +49,12 @@ working on that device.
 - **Technicals:** a player's card shows a red **1T** badge and turns amber after one technical; the second
   ejects them (red card, EJECTED). In the box score, **EJ** = ejected and **FO** = fouled out.
 
+**One device scores a game.** The device that opens a live game is its scorer. On other signed-in devices the game
+updates live but is view-only, with a banner saying who's scoring and **Take over scoring** (two taps) to move it.
+Leaving the game frees it, and a claim goes stale after 3 minutes without activity (e.g. the tablet went to
+sleep). Name each device in Settings → Account and sync. During a game, **Box score** opens both teams' box
+scores without leaving the game (also on view-only devices).
+
 ## After the game
 
 **End game** plays a short finish: the tiger and the opponent's initials, both scores counting up, a
@@ -103,6 +109,11 @@ Tabs:
 - **Lineups:** every five-player unit with possessions, points for/against and net per 100, and the record
   of each starting lineup (from games that recorded subs).
 - **Game log:** each game's team numbers and top scorer.
+
+**Scouting report:** for any team you've played this season, **Scout** (on the schedule and Up next, New game, a
+live game's Box score, and the Opponents table) opens their record against you, scoring by quarter, how they
+score, **Watch for** (top scorers, 3-point shooters, free throw shooters, foul trouble), every jersey number with
+points, 3s, free throws and fouls, how our players did against them, and the games. **Print** prints it.
 
 Tap a player anywhere for their page, headed by their jersey in the team color: season line, rank on the team in each stat, shooting bars, points
 mix, impact numbers, points by game and by quarter, season highs, splits (home/away, wins/losses, started/

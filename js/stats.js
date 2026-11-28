@@ -448,7 +448,7 @@
     h.push(h2('Opponents'));
     h.push('<table class="sx-t"><thead><tr><th class="l">Opponent</th><th>GP</th><th>W–L</th><th>PF</th><th>PA</th><th>Margin</th><th class="l">Results</th></tr></thead><tbody>' +
       S.opponents.map(function (o) {
-        var gp = o.games.length, one = gp === 1 ? link(ctx, '#report/' + o.games[0].g.id) : '';
+        var gp = o.games.length, one = link(ctx, '#scout/' + encodeURIComponent(o.name));
         return '<tr' + one + '><td class="l nm">' + esc(o.name) + '</td><td>' + gp + '</td><td>' + rec(o.rec) + '</td><td>' + o.pf + '</td><td>' + o.pa +
           '</td><td class="' + (o.pf >= o.pa ? 'pos' : 'neg') + '">' + sgn(o.pf - o.pa) + '</td><td class="l dim">' +
           o.games.map(function (d) { return result(d) + ' (' + shortDate(d.g.date) + ')'; }).join(', ') + '</td></tr>';
@@ -749,6 +749,87 @@
     return sheet(ctx, 'Game log', '<b>' + n + '</b> games', h.join(''), 'wide');
   }
 
+  // ---------- Scouting report: one opponent ----------
+  function scoutSheet(S, ctx, name) {
+    var D = S.details, n = D.length, h = [];
+    if (!n) return sheet(ctx, 'Scouting · ' + esc(name), '', '<p class="sx-none">No finished games against ' + esc(name) + ' yet this season. Once you play them, their numbers show up here.</p>');
+    var T = S.team, them = T.them, opp = {};
+    D.forEach(function (d) {
+      Object.keys(d.c.opp).forEach(function (k) {
+        var l = d.c.opp[k], o = opp[k] || (opp[k] = { num: k, gp: 0, line: blank(), high: 0, last: 0, maxPf: 0, out: 0 });
+        o.gp++; o.line = C.addLines(o.line, l); o.high = Math.max(o.high, l.pts); o.last = l.pts; o.maxPf = Math.max(o.maxPf, l.pf);
+        if (C.outReason(l, d.c.rules)) o.out++;
+      });
+    });
+    var all = Object.keys(opp).map(function (k) { return opp[k]; });
+    var ppg = function (r) { return r.line.pts / r.gp; };
+    var players = all.filter(function (r) { return r.num !== ''; }).sort(function (a, b) { return ppg(b) - ppg(a) || R2(a, b); });
+    function R2(a, b) { var x = parseInt(a.num, 10), y = parseInt(b.num, 10); return (isNaN(x) ? 999 : x) - (isNaN(y) ? 999 : y); }
+    h.push(kpis([
+      [rec(T.rec), 'Record vs them', 'big'], [per(T.pa, n), 'They score / game'], [per(T.pf, n), 'We score / game'],
+      [sgn1((T.pf - T.pa) / n), 'Margin / game', T.pf >= T.pa ? 'pos' : 'neg'], [per(them.tpm, n), 'Their 3s / game'],
+      [per(them.ftm, n), 'Their FTs made / game'], [per(them.pf, n), 'Their fouls / game']
+    ]));
+    function jr(r) { return '<span class="sx-jr">#' + esc(r.num) + '</span>'; }
+    var watch = [
+      ['Top scorers', players.slice(0, 3), function (r) { return per(r.line.pts, r.gp) + ' <small>ppg</small>'; }],
+      ['3-point shooters', players.filter(function (r) { return r.line.tpm > 0; }).sort(function (a, b) { return b.line.tpm - a.line.tpm; }).slice(0, 3),
+        function (r) { return r.line.tpm + ' <small>made</small>'; }],
+      ['At the free throw line', players.filter(function (r) { return r.line.ftm > 0; }).sort(function (a, b) { return b.line.ftm - a.line.ftm; }).slice(0, 3),
+        function (r) { return r.line.ftm + ' <small>made</small>'; }],
+      ['Foul trouble', players.filter(function (r) { return r.line.pf / r.gp >= 3 || r.maxPf >= 4 || r.out; })
+        .sort(function (a, b) { return b.line.pf / b.gp - a.line.pf / a.gp; }).slice(0, 4),
+        function (r) { return per(r.line.pf, r.gp) + ' <small>fouls/g' + (r.out ? ' · fouled out' : '') + '</small>'; }]
+    ];
+    h.push(h2('Watch for') + '<div class="sx-ldrs watch">' + watch.map(function (w) {
+      return '<div class="sx-ldr"><h3>' + w[0] + '</h3>' + (w[1].length ? '<ol>' + w[1].map(function (r) { return '<li>' + jr(r) + '<b>' + w[2](r) + '</b></li>'; }).join('') + '</ol>'
+        : '<p class="sx-none">Nobody stands out.</p>') + '</div>';
+    }).join('') + '</div>');
+    // Scoring by period and how they score.
+    var qrows = '', np = T.per.us.length;
+    for (var q = 0; q < np; q++) qrows += '<td>' + per(T.per.them[q], T.per.n[q]) + '</td>';
+    var urows = '';
+    for (var q2 = 0; q2 < np; q2++) urows += '<td>' + per(T.per.us[q2], T.per.n[q2]) + '</td>';
+    var qhead = '';
+    for (var q3 = 0; q3 < np; q3++) qhead += '<th>' + ctx.periodLabel(q3 + 1) + '</th>';
+    h.push('<div class="sx-cols"><div>' + h2('Scoring by ' + (np === 2 ? 'half' : 'quarter'), 'average') + '<table class="sx-t"><thead><tr><th class="l"></th>' + qhead +
+      '</tr></thead><tbody><tr><td class="l nm">' + esc(name) + '</td>' + qrows + '</tr><tr><td class="l nm">' + esc(ctx.teamName) + '</td>' + urows + '</tr></tbody></table></div>' +
+      '<div>' + h2('How they score') + mix(them) + '</div></div>');
+    // Every number.
+    h.push(h2('By jersey', 'every number we’ve seen'));
+    h.push('<table class="sx-t"><thead><tr><th class="l">#</th><th>GP</th><th class="b">PTS</th><th>PPG</th><th>2PM</th><th>3PM</th><th>FTM</th><th>PF</th><th>PF/G</th><th>High</th><th>Last</th></tr></thead><tbody>' +
+      all.sort(function (a, b) { return (a.num === '') - (b.num === '') || ppg(b) - ppg(a) || R2(a, b); }).map(function (r) {
+        var l = r.line;
+        return '<tr><td class="l b">' + (r.num === '' ? '<span class="dim">Team</span>' : '#' + esc(r.num)) + '</td><td>' + r.gp + '</td><td class="b">' + l.pts + '</td><td>' + per(l.pts, r.gp) +
+          '</td><td>' + (l.fgm - l.tpm) + '</td><td>' + l.tpm + '</td><td>' + l.ftm + '</td><td>' + l.pf + (l.tf ? ' <small>(' + l.tf + 'T)</small>' : '') + '</td><td' + (l.pf / r.gp >= 3 ? ' class="neg"' : '') + '>' +
+          per(l.pf, r.gp) + '</td><td>' + r.high + '</td><td>' + r.last + '</td></tr>';
+      }).join('') + '</tbody></table>');
+    // How we did against them.
+    var ours = rosterRows(S, ctx).filter(function (r) { return r.s.gp; }).sort(function (a, b) { return b.s.line.pts / b.s.gp - a.s.line.pts / a.s.gp; });
+    h.push(h2('Our players against them'));
+    h.push('<table class="sx-t"><thead><tr><th class="l">Player</th><th>GP</th><th class="b">PPG</th><th>REB</th><th>AST</th><th>STL</th><th>TO</th><th>FG%</th><th>3P%</th><th>+/−</th></tr></thead><tbody>' +
+      ours.map(function (r) {
+        var s = r.s, l = s.line;
+        return '<tr' + link(ctx, '#player/' + r.p.id) + '><td class="l nm">' + pTag(ctx, r.p) + '</td><td>' + s.gp + '</td><td class="b">' + per(l.pts, s.gp) + '</td><td>' + per(reb(l), s.gp) +
+          '</td><td>' + per(l.ast, s.gp) + '</td><td>' + per(l.stl, s.gp) + '</td><td>' + per(l.to, s.gp) + '</td><td>' + pcIf(ctx.on.fg, l.fgm, l.fga) + '</td><td>' + pcIf(ctx.on.tp, l.tpm, l.tpa) +
+          '</td><td>' + (s.pmGp ? sgn(s.pm) : '—') + '</td></tr>';
+      }).join('') + '</tbody></table>');
+    // The games.
+    h.push(h2('Games against them'));
+    h.push('<table class="sx-t"><thead><tr><th class="l">Date</th><th class="l">Game</th><th class="l">Result</th><th class="l">Our top scorer</th><th class="l">Their top scorer</th><th>LC</th></tr></thead><tbody>' +
+      D.slice().reverse().map(function (d) {
+        var best = null, theirs = null;
+        Object.keys(d.c.players).forEach(function (id) { var x = d.c.players[id]; if (!best || x.pts > best.pts) best = { id: id, pts: x.pts }; });
+        Object.keys(d.c.opp).forEach(function (k) { var x = d.c.opp[k]; if (k !== '' && (!theirs || x.pts > theirs.pts)) theirs = { num: k, pts: x.pts }; });
+        var bp = best && best.pts ? ctx.find(best.id) : null;
+        return '<tr' + link(ctx, '#report/' + d.g.id) + '><td class="l">' + shortDate(d.g.date) + '</td><td class="l nm">' + esc(vs(d.g)) + (d.g.type === 'scrimmage' ? ' <small>(S)</small>' : '') +
+          '</td><td class="l b ' + (d.margin >= 0 ? 'pos' : 'neg') + '">' + result(d) + '</td><td class="l nm">' + (bp ? pTag(ctx, bp) + ' <b>' + best.pts + '</b>' : '—') +
+          '</td><td class="l">' + (theirs && theirs.pts ? '#' + esc(theirs.num) + ' <b>' + theirs.pts + '</b>' : '—') + '</td><td>' + d.flow.leadChanges + '</td></tr>';
+      }).join('') + '</tbody></table>');
+    h.push('<p class="sx-foot">From this season’s games against ' + esc(name) + '. A number counts as having played in a game when it scored or fouled (we don’t track their substitutions). PF/G of 3 or more is in red.</p>');
+    return sheet(ctx, 'Scouting · ' + esc(name), '<b>' + n + '</b> game' + (n === 1 ? '' : 's'), h.join(''));
+  }
+
   // ---------- Jersey (player page) ----------
   // A tank-top jersey in the team color with the number, the team name across the chest and tiger
   // stripes down the sides. Plain SVG so it prints.
@@ -900,6 +981,6 @@
   }
 
   root.SBStats = {
-    VIEWS: VIEWS, team: teamSheet, players: playersSheet, leaders: leadersSheet, lineups: lineupsSheet, games: gamesSheet, player: playerSheet
+    VIEWS: VIEWS, team: teamSheet, scout: scoutSheet, players: playersSheet, leaders: leadersSheet, lineups: lineupsSheet, games: gamesSheet, player: playerSheet
   };
 })(this);

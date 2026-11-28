@@ -608,8 +608,16 @@
     return lines.join('\n');
   }
 
+  // Box score for the live game's sheet: the line score, then one team's box.
+  function liveBox(game, meta, names, side) {
+    var c = C.computeGame(game);
+    return '<article class="rpt rpt-mini">' + lineScore(game, meta, c) + (side === 'them' ? '<h2>' + esc(oppName(game)) + ' by jersey</h2>' + oppBox(game, c)
+      : '<h2>' + esc(meta.team.name) + '</h2>' + ourBox(game, meta, c, names)) + '</article>';
+  }
+
   root.SBReport = {
     CSS: CSS,
+    liveBox: liveBox,
     bindCharts: bindMargin,
     render: render,
     standalone: standalone,

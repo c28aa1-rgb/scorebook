@@ -961,3 +961,21 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
   .fin-badge { width: 6.5rem; height: 6.5rem; } .fin-nums .n { font-size: 5.6rem; } .fin-score { margin-top: 0.8rem; } .fin-qs { margin-top: 0.9rem; }
   .fin-star { margin-top: 0.8rem; } .fin-go { margin-top: 1rem; }
 }
+
+/* One scorer per game: another device is scoring, so this one is view-only */
+.lv.view-only .lv-pad, .lv.view-only .lv-undo, .lv.view-only .lv-bot .btn:first-child { opacity: 0.4; }
+.vo-bar { position: fixed; left: 50%; bottom: 4.9rem; transform: translateX(-50%); z-index: 9; display: flex; align-items: center; gap: 0.8rem; max-width: calc(100% - 2rem);
+  padding: 0.55rem 0.6rem 0.55rem 1rem; background: var(--ink); color: #fff; border-radius: 0.6rem; box-shadow: 0 6px 18px rgba(16, 24, 32, 0.35); font-size: 0.9rem; }
+.vo-bar small { color: #A9B6BA; }
+.vo-bar .btn { flex: none; }
+.vo-dot { flex: none; width: 0.65rem; height: 0.65rem; border-radius: 50%; background: #3DDC84; box-shadow: 0 0 0 0.2rem rgba(61, 220, 132, 0.3); animation: vo-pulse 1.6s ease-in-out infinite; }
+@keyframes vo-pulse { 50% { box-shadow: 0 0 0 0.45rem rgba(61, 220, 132, 0); } }
+
+/* Live Box score sheet */
+.box-tabs { height: 2.8rem; margin-bottom: 0.6rem; }
+.rpt.rpt-mini { max-width: none; padding: 0; border: 0; background: transparent; font-size: 0.85rem; }
+.rpt.rpt-mini h2 { margin-top: 0.9rem; }
+
+/* Scouting link on New game */
+.sc-link { margin-bottom: 0.7rem; }
+.sx-ldrs.watch { grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)); }
