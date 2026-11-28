@@ -23,13 +23,15 @@ team colors. To save them into <code>icons/</code>, run a receiver on port 8099 
 <script>
   var BLUE = '#2340C8', WHITE = '#FFFFFF';
   var OUTPUTS = [
-    // name, size, artwork color, background ('none' | 'circle' | 'square'), background color, artwork scale
+    // name, size, artwork color, background ('none' | 'circle' | 'square'), background color, artwork scale,
+    // and optionally the part of the artwork to keep (a centered circle, as a fraction of the logo: 0.8 = the tiger head, no ring)
     ['tiger.png', 320, BLUE, 'none', '', 1],
     ['favicon-64.png', 64, BLUE, 'circle', WHITE, 1],
     ['icon-192.png', 192, WHITE, 'square', BLUE, 0.84],
     ['icon-512.png', 512, WHITE, 'square', BLUE, 0.84],
     ['apple-touch-icon.png', 180, WHITE, 'square', BLUE, 0.84],
-    ['icon-maskable-512.png', 512, WHITE, 'square', BLUE, 0.7]
+    ['icon-maskable-512.png', 512, WHITE, 'square', BLUE, 0.7],
+    ['tiger-head-white.png', 360, WHITE, 'none', '', 1, 0.8]
   ];
   var made = {};
 
@@ -71,14 +73,19 @@ team colors. To save them into <code>icons/</code>, run a receiver on port 8099 
     }
     var art = { };
     OUTPUTS.forEach(function (o) {
-      var name = o[0], size = o[1], color = o[2], bg = o[3], bgc = o[4], scale = o[5];
+      var name = o[0], size = o[1], color = o[2], bg = o[3], bgc = o[4], scale = o[5], part = o[6] || 1;
       var c = document.createElement('canvas'); c.width = c.height = size;
       var ctx = c.getContext('2d');
       ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
       if (bg === 'square') { ctx.fillStyle = bgc; ctx.fillRect(0, 0, size, size); }
       if (bg === 'circle') { ctx.fillStyle = bgc; ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); ctx.fill(); }
       var a2 = art[color] || (art[color] = artwork(color)), w = size * scale, off = (size - w) / 2;
-      ctx.drawImage(a2, crop.x, crop.y, crop.s, crop.s, off, off, w, w);
+      if (part < 1) {
+        // Keep only a centered circle of the logo (drops the brush-stroke ring), scaled up to fill.
+        var ps = crop.s * part, px = crop.x + (crop.s - ps) / 2, py = crop.y + (crop.s - ps) / 2;
+        ctx.save(); ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); ctx.clip();
+        ctx.drawImage(a2, px, py, ps, ps, off, off, w, w); ctx.restore();
+      } else ctx.drawImage(a2, crop.x, crop.y, crop.s, crop.s, off, off, w, w);
       made[name] = c;
       var fig = document.createElement('figure'), cap = document.createElement('figcaption');
       cap.textContent = name + ' (' + size + ')';

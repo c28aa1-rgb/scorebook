@@ -876,3 +876,79 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
 .sx-t .sq-col { background: #FFF0C2; transition: background 0.8s ease-out; }
 .sx-t th.sq-col { background: #FFE39A; }
 .sx-t .sq-col.sq-col-out { background: transparent; }
+
+/* ---------- Finish-game animation (#finale, js/app.js showFinale) ----------
+   Timeline: backdrop 0–0.35 s, card 0.15–0.7 s, badges 0.3–0.9 s, scores count 0.6–1.9 s,
+   stamp 2.0 s, confetti from 2.15 s (wins), periods 2.6 s+, top performer 3.0 s, button 3.3 s. */
+.fin { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 60; display: flex; align-items: center; justify-content: center; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 42%, #1B2A6B 0%, #101820 62%); color: #fff; animation: fin-in 0.35s ease-out both; -webkit-user-select: none; user-select: none; }
+.fin.loss { background: radial-gradient(ellipse at 50% 42%, #2A3238 0%, #101820 62%); }
+.fin.tie { background: radial-gradient(ellipse at 50% 42%, #3A3018 0%, #101820 62%); }
+.fin.out { animation: fin-out 0.3s ease-in both; }
+.fin-rays { position: absolute; left: 50%; top: 42%; width: 220vmax; height: 220vmax; margin: -110vmax 0 0 -110vmax; opacity: 0.22;
+  background: repeating-conic-gradient(from 0deg, rgba(78, 106, 247, 0.9) 0deg 7deg, transparent 7deg 20deg); animation: fin-spin 40s linear infinite, fin-fade 1.2s ease-out both; }
+.fin.loss .fin-rays { opacity: 0.08; background: repeating-conic-gradient(from 0deg, rgba(160, 175, 180, 0.9) 0deg 7deg, transparent 7deg 20deg); }
+.fin.tie .fin-rays { background: repeating-conic-gradient(from 0deg, rgba(245, 197, 66, 0.7) 0deg 7deg, transparent 7deg 20deg); }
+.fin-glow { position: absolute; left: 50%; top: 42%; width: 70vmin; height: 70vmin; margin: -35vmin 0 0 -35vmin; border-radius: 50%;
+  background: radial-gradient(circle, rgba(78, 106, 247, 0.45), transparent 65%); animation: fin-pulse 3s ease-in-out 0.4s infinite; }
+.fin.loss .fin-glow { background: radial-gradient(circle, rgba(140, 155, 160, 0.25), transparent 65%); }
+.fin-card { position: relative; text-align: center; width: min(92vw, 52rem); padding: 1rem; animation: fin-rise 0.55s cubic-bezier(0.2, 0.9, 0.3, 1) 0.15s both; }
+.fin-eye { font-family: var(--f-num); font-weight: 700; letter-spacing: 0.32em; text-transform: uppercase; color: #9DB0FF; font-size: 1rem; }
+.fin.loss .fin-eye { color: #A9B6BA; }
+.fin-score { display: flex; align-items: center; justify-content: center; gap: 2.2rem; margin-top: 1.4rem; }
+.fin-team { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; width: 11rem; }
+.fin-team b { font-family: var(--f-num); font-size: 1.35rem; letter-spacing: 0.12em; text-transform: uppercase; line-height: 1.1; }
+.fin-team.us { animation: fin-left 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) 0.3s both; }
+.fin-team.them { animation: fin-right 0.6s cubic-bezier(0.2, 0.9, 0.3, 1) 0.3s both; }
+.fin-badge { width: 8.5rem; height: 8.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.fin-badge.us { background: radial-gradient(circle at 35% 30%, #4E6AF7, #2340C8 60%, #14278A); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.9), 0 0 40px rgba(78, 106, 247, 0.8); }
+.fin-badge.us img { width: 78%; height: 78%; display: block; }
+.fin-badge.them { background: radial-gradient(circle at 35% 30%, #5C6B71, #3A464C 60%, #232C31); box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.35); }
+.fin-badge.them span { font-family: var(--f-num); font-weight: 700; font-size: 2.6rem; letter-spacing: 0.04em; color: #E4ECEA; }
+.fin-nums { display: flex; align-items: center; gap: 0.6rem; font-family: var(--f-num); font-weight: 700; font-variant-numeric: tabular-nums; }
+.fin-nums .n { font-size: 7.5rem; line-height: 1; min-width: 2ch; color: rgba(255, 255, 255, 0.55); }
+.fin-nums .n.top { color: #fff; text-shadow: 0 0 28px rgba(157, 176, 255, 0.85); animation: fin-beat 0.5s ease-out 1.9s both; }
+.fin.loss .fin-nums .n.top { text-shadow: 0 0 22px rgba(255, 255, 255, 0.35); }
+.fin-nums .dash { font-size: 4rem; color: rgba(255, 255, 255, 0.4); }
+.fin-stamp { margin-top: 1.1rem; animation: fin-stamp 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) 2s both; }
+.fin-stamp span { display: inline-block; padding: 0.15rem 1.6rem 0.2rem; border: 4px solid #fff; border-radius: 0.5rem; font-family: var(--f-num); font-weight: 700; font-size: 3.4rem;
+  letter-spacing: 0.3em; padding-left: calc(1.6rem + 0.3em); transform: rotate(-4deg); background: #2340C8; box-shadow: 0 0 40px rgba(78, 106, 247, 0.9); }
+.fin.loss .fin-stamp span { background: transparent; border-color: #A9B6BA; color: #DDE5E3; box-shadow: none; }
+.fin.tie .fin-stamp span { background: #9A6503; border-color: #F5C542; box-shadow: 0 0 30px rgba(245, 197, 66, 0.6); }
+.fin-sub { margin-top: 0.6rem; font-weight: 700; color: #C9D6D3; animation: fin-up 0.4s ease-out 2.4s both; }
+.fin-qs { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.4rem; }
+.fin-q { min-width: 4.6rem; padding: 0.35rem 0.6rem; border-radius: 0.4rem; background: rgba(255, 255, 255, 0.08); border: 1.5px solid rgba(255, 255, 255, 0.18); animation: fin-up 0.4s ease-out both; }
+.fin-q span { display: block; font-size: 0.68rem; letter-spacing: 0.14em; color: #A9B6BA; font-weight: 700; }
+.fin-q b { font-family: var(--f-num); font-size: 1.3rem; }
+.fin-q.u { border-color: rgba(157, 176, 255, 0.8); background: rgba(35, 64, 200, 0.35); }
+.fin-star { margin-top: 1.3rem; font-size: 1.05rem; color: #E4ECEA; animation: fin-up 0.45s ease-out 3s both; }
+.fin-star small { display: block; font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: #9DB0FF; font-weight: 700; margin-bottom: 0.2rem; }
+.fin-star b { color: #fff; font-family: var(--f-num); font-size: 1.25rem; }
+.fin-go { margin-top: 1.5rem; min-height: 3.2rem; padding: 0 2rem; border-radius: 1.6rem; background: #fff; color: #101820; font-weight: 700; font-size: 1.05rem; text-align: center;
+  animation: fin-up 0.45s ease-out 3.3s both; }
+.fin-go:active { transform: scale(0.97); }
+.fin-confetti i { position: absolute; top: -4vh; border-radius: 2px; opacity: 0; animation-name: fin-fall; animation-timing-function: cubic-bezier(0.25, 0.4, 0.5, 1); animation-fill-mode: both; }
+/* Tap to skip: everything jumps to its final state. */
+.fin.skip *, .fin.still * { animation-delay: 0s !important; animation-duration: 0.01s !important; }
+.fin.skip .fin-rays, .fin.still .fin-rays { animation: none !important; }
+.fin.skip .fin-confetti, .fin.still .fin-confetti { display: none; }
+@keyframes fin-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fin-out { to { opacity: 0; transform: scale(1.03); } }
+@keyframes fin-spin { to { transform: rotate(360deg); } }
+@keyframes fin-fade { from { opacity: 0; } }
+@keyframes fin-pulse { 0%, 100% { transform: scale(1); opacity: 0.8; } 50% { transform: scale(1.12); opacity: 1; } }
+@keyframes fin-rise { from { opacity: 0; transform: translateY(2.5rem) scale(0.96); } to { opacity: 1; transform: none; } }
+@keyframes fin-left { from { opacity: 0; transform: translateX(-4rem) scale(0.7); } to { opacity: 1; transform: none; } }
+@keyframes fin-right { from { opacity: 0; transform: translateX(4rem) scale(0.7); } to { opacity: 1; transform: none; } }
+@keyframes fin-beat { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes fin-stamp { from { opacity: 0; transform: scale(2.4); } to { opacity: 1; transform: scale(1); } }
+@keyframes fin-up { from { opacity: 0; transform: translateY(0.8rem); } to { opacity: 1; transform: none; } }
+@keyframes fin-fall { 0% { opacity: 1; transform: translate(0, 0) rotate(0deg); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--drift), 108vh) rotate(var(--spin)); } }
+@media (max-width: 46rem) {
+  .fin-score { gap: 0.8rem; } .fin-team { width: 7rem; } .fin-badge { width: 5.5rem; height: 5.5rem; } .fin-badge.them span { font-size: 1.7rem; }
+  .fin-nums .n { font-size: 4.6rem; } .fin-team b { font-size: 1rem; } .fin-stamp span { font-size: 2.4rem; }
+}
+@media (max-height: 40rem) {
+  .fin-badge { width: 6.5rem; height: 6.5rem; } .fin-nums .n { font-size: 5.6rem; } .fin-score { margin-top: 0.8rem; } .fin-qs { margin-top: 0.9rem; }
+  .fin-star { margin-top: 0.8rem; } .fin-go { margin-top: 1rem; }
+}

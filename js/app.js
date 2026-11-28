@@ -1525,6 +1525,7 @@
       (ui.armed === 'del' + g.id ? 'Confirm delete' : 'Delete game') + '</button>');
     if (live) h.push('<button class="btn sm pri" data-a="go" data-x="#game/' + g.id + '">Back to game</button>');
     else if (!locked) h.push('<button class="btn sm ghost" data-a="reopen">Reopen game</button>');
+    if (!live) h.push('<button class="btn sm ghost" data-a="replayFinale">Replay final</button>');
     h.push('<button class="btn sm" data-a="print">Print</button>');
     h.push('<button class="btn sm" data-a="dlReport">Save file</button>');
     if (SHARE_FILES) h.push('<button class="btn sm" data-a="shareReport">Share file</button>');
@@ -1924,12 +1925,104 @@
     render();
   };
 
+
+  // ---------- Finish-game animation ----------
+  // Plays over the report when a game ends (and from "Replay final" on the report): light rays, the
+  // tiger and the opponent's initials, both scores counting up, a WIN / LOSS / TIE stamp, confetti for a
+  // win, the period-by-period results and the top performer. Tap to skip ahead; See the report closes it.
+  function oppInitials(name) {
+    var words = String(name || 'Opponent').replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+    return (words.length > 1 ? words.map(function (w) { return w.charAt(0); }).join('').slice(0, 3) : (words[0] || 'OPP').slice(0, 3)).toUpperCase();
+  }
+  function showFinale(g) {
+    var old = document.getElementById('finale');
+    if (old) old.parentNode.removeChild(old);
+    var c = C.computeGame(g), r = c.rules, us = c.score.us, them = c.score.them, res = us > them ? 'win' : us < them ? 'loss' : 'tie';
+    var scrim = g.type === 'scrimmage', ot = !r.openEnded && c.periods > r.periods;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Top performer by game score.
+    var star = null, Calc = window.SBStatsCalc;
+    Object.keys(c.players).forEach(function (id) {
+      var l = c.players[id], v = Calc ? Calc.gmsc(l) : l.pts;
+      if (!star || v > star.v) star = { id: id, l: l, v: v };
+    });
+    var sp = star && (player(star.id) || R.findPlayer(g, meta, star.id));
+    var starText = star && star.l.pts + star.l.oreb + star.l.dreb + star.l.ast > 0 ? esc(pTag(sp || {}) || 'Player') + ' · <b>' + star.l.pts + '</b> pts · ' +
+      (star.l.oreb + star.l.dreb) + ' reb · ' + star.l.ast + ' ast' + (star.l.stl ? ' · ' + star.l.stl + ' stl' : '') : '';
+    // Period boxes, each marked with who won it.
+    // Only periods actually played (a game ended early doesn't show empty ones).
+    var played = g.quarter || 1;
+    for (var pq = 0; pq < c.periods; pq++) if (c.byPeriod.us[pq] + c.byPeriod.them[pq] > 0) played = Math.max(played, pq + 1);
+    var boxes = '';
+    for (var q = 0; q < Math.min(played, c.periods); q++) {
+      var a = c.byPeriod.us[q], b = c.byPeriod.them[q];
+      boxes += '<div class="fin-q ' + (a > b ? 'u' : a < b ? 't' : 'e') + '" style="animation-delay:' + (2.6 + q * 0.09).toFixed(2) + 's"><span>' + C.periodLabel(q + 1, r) +
+        '</span><b>' + a + '–' + b + '</b></div>';
+    }
+    var confetti = '';
+    if (res === 'win' && !reduce) {
+      var colors = ['#2340C8', '#9DB0FF', '#FFFFFF', '#F5C542', '#4E6AF7'];
+      for (var k = 0; k < 46; k++) {
+        confetti += '<i style="left:' + (Math.random() * 100).toFixed(1) + '%;background:' + colors[k % colors.length] + ';animation-delay:' + (2.15 + Math.random() * 0.6).toFixed(2) +
+          's;animation-duration:' + (2.4 + Math.random() * 1.8).toFixed(2) + 's;--drift:' + Math.round(Math.random() * 160 - 80) + 'px;--spin:' + Math.round(360 + Math.random() * 720) +
+          'deg;width:' + (6 + Math.round(Math.random() * 6)) + 'px;height:' + (10 + Math.round(Math.random() * 8)) + 'px"></i>';
+      }
+    }
+    var stamp = res === 'win' ? 'WIN' : res === 'loss' ? 'LOSS' : 'TIE';
+    var won = scrim && r.scoreResets ? '<div class="fin-sub">' + (r.periods === 2 ? 'Halves' : 'Quarters') + ' won ' + c.periodsWon.us + '–' + c.periodsWon.them +
+      (c.periodsWon.tied ? ' (' + c.periodsWon.tied + ' tied)' : '') + '</div>' : '';
+    var el = document.createElement('div');
+    el.id = 'finale';
+    el.className = 'fin ' + res + (reduce ? ' still' : '');
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Final: ' + meta.team.name + ' ' + us + ', ' + (g.opponent || 'Opponent') + ' ' + them);
+    el.innerHTML = '<div class="fin-rays"></div><div class="fin-glow"></div><div class="fin-confetti">' + confetti + '</div>' +
+      '<div class="fin-card"><div class="fin-eye">' + (scrim ? 'Scrimmage · ' : '') + 'Final' + (ot ? ' / OT' : '') + ' · ' + esc(R.fmtDate(g.date).replace(/, \d{4}$/, '')) +
+      ' · ' + (g.homeAway === 'away' ? 'Away' : 'Home') + '</div>' +
+      '<div class="fin-score"><div class="fin-team us"><div class="fin-badge us"><img src="icons/tiger-head-white.png" alt=""></div><b>' + esc(meta.team.name) + '</b></div>' +
+      '<div class="fin-nums"><span class="n us' + (us > them ? ' top' : '') + '" data-to="' + us + '">' + (reduce ? us : 0) + '</span><span class="dash">–</span>' +
+      '<span class="n them' + (them > us ? ' top' : '') + '" data-to="' + them + '">' + (reduce ? them : 0) + '</span></div>' +
+      '<div class="fin-team them"><div class="fin-badge them"><span>' + esc(oppInitials(g.opponent)) + '</span></div><b>' + esc(g.opponent || 'Opponent') + '</b></div></div>' +
+      '<div class="fin-stamp"><span>' + stamp + '</span></div>' + won +
+      '<div class="fin-qs">' + boxes + '</div>' +
+      (starText ? '<div class="fin-star"><small>Top performer</small>' + starText + '</div>' : '') +
+      '<button class="fin-go" type="button">See the report</button></div>';
+    document.body.appendChild(el);
+    // Count the scores up (ease-out) after the badges arrive.
+    var nums = el.querySelectorAll('.fin-nums .n'), t0 = null, start = 600, dur = 1300;
+    function tick(t) {
+      if (!el.parentNode) return;
+      if (t0 === null) t0 = t;
+      var p = Math.max(0, Math.min(1, (t - t0 - start) / dur)), e = 1 - Math.pow(1 - p, 3);
+      for (var i = 0; i < nums.length; i++) nums[i].textContent = Math.round(+nums[i].getAttribute('data-to') * e);
+      if (p < 1 && !el.classList.contains('skip')) requestAnimationFrame(tick);
+      else for (var j = 0; j < nums.length; j++) nums[j].textContent = nums[j].getAttribute('data-to');
+    }
+    if (!reduce && window.requestAnimationFrame) requestAnimationFrame(tick);
+    function close() {
+      el.classList.add('out');
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 300);
+      document.removeEventListener('keydown', onKey);
+    }
+    // First tap while it plays jumps to the end; after that (or on the button) it closes.
+    var opened = Date.now();
+    el.addEventListener('click', function (ev) {
+      if (ev.target.classList.contains('fin-go')) return close();
+      if (Date.now() - opened < 3500 && !el.classList.contains('skip')) { el.classList.add('skip'); return; }
+      close();
+    });
+    function onKey(ev) { if (ev.key === 'Escape' || ev.key === 'Enter') close(); }
+    document.addEventListener('keydown', onKey);
+  }
+  actions.replayFinale = function () { var g = gameById(route.id); if (g) showFinale(g); };
+
   actions.endGame = function () {
     var g = gameById(route.id);
     g.status = 'final';
     g.ended = Date.now();
     saveGame(g);
     go('#report/' + g.id);
+    showFinale(g);
   };
 
   actions.reopen = function () {

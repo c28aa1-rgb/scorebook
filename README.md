@@ -51,6 +51,11 @@ working on that device.
 
 ## After the game
 
+**End game** plays a short finish: the tiger and the opponent's initials, both scores counting up, a
+WIN / LOSS / TIE stamp (confetti for a win), the period-by-period results and the top performer. Tap once to
+skip to the end; **See the report** (or another tap) closes it. **Replay final** on a finished game's report plays it
+again. With reduced motion turned on, it shows the finished card without animating.
+
 The report has the key team numbers at a glance, the line score, a score-margin chart (who led and by
 how much through the game, with period dividers; hover over it, or touch and slide along it, to see the
 score, margin and basket at any point), the full box score, head-to-head bars, who scored (2s,
