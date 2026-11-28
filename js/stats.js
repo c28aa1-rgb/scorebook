@@ -449,7 +449,8 @@
     h.push('<table class="sx-t"><thead><tr><th class="l">Opponent</th><th>GP</th><th>W–L</th><th>PF</th><th>PA</th><th>Margin</th><th class="l">Results</th></tr></thead><tbody>' +
       S.opponents.map(function (o) {
         var gp = o.games.length, one = link(ctx, '#scout/' + encodeURIComponent(o.name));
-        return '<tr' + one + '><td class="l nm">' + esc(o.name) + '</td><td>' + gp + '</td><td>' + rec(o.rec) + '</td><td>' + o.pf + '</td><td>' + o.pa +
+        var ol = ctx.oppLogo ? ctx.oppLogo(o.name) : '';
+        return '<tr' + one + '><td class="l nm">' + (ol ? '<img class="sx-ob" src="' + ol + '" alt="">' : '') + esc(o.name) + '</td><td>' + gp + '</td><td>' + rec(o.rec) + '</td><td>' + o.pf + '</td><td>' + o.pa +
           '</td><td class="' + (o.pf >= o.pa ? 'pos' : 'neg') + '">' + sgn(o.pf - o.pa) + '</td><td class="l dim">' +
           o.games.map(function (d) { return result(d) + ' (' + shortDate(d.g.date) + ')'; }).join(', ') + '</td></tr>';
       }).join('') + '</tbody></table>');
@@ -734,7 +735,8 @@
       var l = d.c.team.us, top = null;
       Object.keys(d.c.players).forEach(function (id) { var x = d.c.players[id]; if (!top || x.pts > top.pts) top = { id: id, pts: x.pts }; });
       var tp = top && top.pts ? ctx.find(top.id) : null;
-      h.push('<tr' + link(ctx, '#report/' + d.g.id) + '><td class="l">' + shortDate(d.g.date) + '</td><td class="l nm">' + esc(vs(d.g)) + (d.g.type === 'scrimmage' ? ' <small>(S)</small>' : '') +
+      var glo = ctx.oppLogo ? ctx.oppLogo(d.g.opponent) : '';
+      h.push('<tr' + link(ctx, '#report/' + d.g.id) + '><td class="l">' + shortDate(d.g.date) + '</td><td class="l nm">' + (glo ? '<img class="sx-ob" src="' + glo + '" alt="">' : '') + esc(vs(d.g)) + (d.g.type === 'scrimmage' ? ' <small>(S)</small>' : '') +
         '</td><td class="l b ' + (d.margin >= 0 ? 'pos' : 'neg') + '">' + result(d) + (d.ot ? ' OT' : '') + '</td><td>' + ma(l.fgm, l.fga) + '</td><td>' + pcIf(ctx.on.fg, l.fgm, l.fga) +
         '</td><td>' + ma(l.tpm, l.tpa) + '</td><td>' + ma(l.ftm, l.fta) + '</td><td>' + reb(l) + '</td><td>' + l.oreb + '</td><td>' + l.ast + '</td><td>' + l.stl +
         '</td><td>' + l.blk + '</td><td>' + l.to + '</td><td>' + l.pf + '</td><td>' + Math.round(d.poss) + '</td><td>' + d.flow.leadChanges + '</td><td class="l nm">' +
@@ -827,7 +829,8 @@
           '</td><td class="l">' + (theirs && theirs.pts ? '#' + esc(theirs.num) + ' <b>' + theirs.pts + '</b>' : '—') + '</td><td>' + d.flow.leadChanges + '</td></tr>';
       }).join('') + '</tbody></table>');
     h.push('<p class="sx-foot">From this season’s games against ' + esc(name) + '. A number counts as having played in a game when it scored or fouled (we don’t track their substitutions). PF/G of 3 or more is in red.</p>');
-    return sheet(ctx, 'Scouting · ' + esc(name), '<b>' + n + '</b> game' + (n === 1 ? '' : 's'), h.join(''));
+    var ol = ctx.oppLogo ? ctx.oppLogo(name) : '';
+    return sheet(ctx, 'Scouting · ' + esc(name), (ol ? '<img class="sx-ologo" src="' + ol + '" alt="">' : '') + '<b>' + n + '</b> game' + (n === 1 ? '' : 's'), h.join(''));
   }
 
   // ---------- Jersey (player page) ----------

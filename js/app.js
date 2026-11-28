@@ -7,11 +7,11 @@
   'use strict';
   var C = window.SBCore, DB = window.SBDB, R = window.SBReport, esc = R.esc;
   // The logo as a data URL too, so saved and published reports carry it inside the file.
-  var LOGO = 'icons/tiger.png', logoData = '';
+  var LOGO = 'icons/tiger.png', tigerData = '';
   (function () { var st = document.createElement('style'); st.textContent = R.CSS; document.head.appendChild(st); })();
   try {
     fetch(LOGO).then(function (r) { return r.blob(); }).then(function (b) {
-      var fr = new FileReader(); fr.onload = function () { logoData = String(fr.result); }; fr.readAsDataURL(b);
+      var fr = new FileReader(); fr.onload = function () { tigerData = String(fr.result); }; fr.readAsDataURL(b);
     })['catch'](function () {});
   } catch (e) {}
   var app = document.getElementById('app');
@@ -83,6 +83,37 @@
 
   // Every save goes to the tablet first, then to the cloud when sync is on. The updated time
   // decides which copy wins when two tablets have changed the same thing.
+  // ---------- Opponent logos (icons/opp/, from each school's own website) ----------
+  // Matched by name; teams without one get a badge with their initials.
+  var OPP_LOGOS = [[/riverdale/, 'riverdale'], [/trinity/, 'trinity'], [/horace\s*mann/, 'horacemann'], [/hackley/, 'hackley'],
+    [/friends/, 'friendsseminary'], [/berkeley/, 'berkeleycarroll'], [/hunter/, 'hunter'], [/grace\s*church/, 'gracechurch'],
+    [/trevor/, 'trevorday'], [/\brye\b/, 'ryecountryday'], [/fieldston|ethical\s*culture|\becfs\b/, 'fieldston'], [/collegiate/, 'collegiate'],
+    [/poly\s*prep|^poly$/, 'polyprep'], [/dwight/, 'dwight']];
+  function oppLogo(name) {
+    var n = String(name || '').toLowerCase();
+    for (var i = 0; i < OPP_LOGOS.length; i++) if (OPP_LOGOS[i][0].test(n)) return 'icons/opp/' + OPP_LOGOS[i][1] + '.png';
+    return '';
+  }
+  function oppInitials(name) {
+    var words = String(name || 'Opponent').replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
+    return (words.length > 1 ? words.map(function (w) { return w.charAt(0); }).join('').slice(0, 3) : (words[0] || 'OPP').slice(0, 3)).toUpperCase();
+  }
+  // A small round badge: the logo, or the initials.
+  function oppBadge(name, cls) {
+    var src = oppLogo(name);
+    return src ? '<img class="ob' + (cls ? ' ' + cls : '') + '" src="' + src + '" alt="">' : '<span class="ob ob-init' + (cls ? ' ' + cls : '') + '">' + esc(oppInitials(name)) + '</span>';
+  }
+  // Logos as data URLs (loaded once), so saved and published reports carry them inside the file.
+  var logoCache = {};
+  function logoData(src) {
+    if (!src) return '';
+    if (logoCache[src] === undefined) {
+      logoCache[src] = '';
+      try { fetch(src).then(function (r) { return r.blob(); }).then(function (b) { var fr = new FileReader(); fr.onload = function () { logoCache[src] = String(fr.result); }; fr.readAsDataURL(b); })['catch'](function () {}); } catch (e) {}
+    }
+    return logoCache[src];
+  }
+
   // ---------- One scorer per live game ----------
   // The tablet that opens a live game becomes its scorer (game.scorer). Other signed-in devices see it
   // live but view-only, with Take over scoring. Leaving the game frees it; a claim goes stale after
@@ -645,7 +676,7 @@
         else if (c.score.us < c.score.them) { wl = 'L'; cls = 'l'; }
         else { wl = 'T'; cls = 'l'; }
         h.push('<li><button data-a="go" data-x="' + (g.status === 'final' ? '#report/' : '#game/') + g.id + '">' +
-          '<span class="wl ' + cls + '">' + wl + '</span><span class="op">' + (g.homeAway === 'away' ? '@ ' : 'vs ') + esc(g.opponent) +
+          '<span class="wl ' + cls + '">' + wl + '</span>' + oppBadge(g.opponent, 'gl') + '<span class="op">' + (g.homeAway === 'away' ? '@ ' : 'vs ') + esc(g.opponent) +
           (g.type === 'scrimmage' ? ' <span class="tag-scrim">Scrimmage</span>' : '') +
           '<small>' + esc(R.fmtDate(g.date)) + (g.location ? ' · ' + esc(g.location) : '') + '</small></span>' +
           '<span class="sc">' + c.score.us + '–' + c.score.them + '</span></button></li>');
@@ -735,7 +766,7 @@
       name: shortName, jersey: jerseyOf,
       full: function (p) { return ((p.first || '') + ' ' + (p.last || '')).trim() || 'Player'; },
       periodLabel: function (q) { return C.periodLabel(q, rules); },
-      teamColor: meta.team.color, teamShort: meta.team.name, logo: LOGO
+      teamColor: meta.team.color, teamShort: meta.team.name, logo: LOGO, oppLogo: oppLogo
     };
   }
   // A player no longer on the roster, from a game's roster snapshot.
@@ -1001,7 +1032,7 @@
     }
     var armed = ui.armed === 'sch' + x.id;
     return '<li class="sch-row"><span class="sch-when"><b>' + esc(R.fmtDate(x.date).replace(/, \d{4}$/, '')) + '</b><small>' + esc(weekday(x.date)) +
-      (x.time ? ' · ' + esc(x.time) : '') + '</small></span><span class="op">' + (x.homeAway === 'away' ? '@ ' : 'vs ') + esc(x.opponent) +
+      (x.time ? ' · ' + esc(x.time) : '') + '</small></span>' + oppBadge(x.opponent, 'sch') + '<span class="op">' + (x.homeAway === 'away' ? '@ ' : 'vs ') + esc(x.opponent) +
       (x.type === 'scrimmage' ? ' <span class="tag-scrim">Scrimmage</span>' : '') + (x.location ? '<small>' + esc(x.location) + '</small>' : '') + '</span>' + right +
       (hasPlayed(x.opponent) ? scoutLink(x.opponent) : '') +
       (full ? '<button class="btn sm danger' + (armed ? ' armed' : '') + '" data-a="rmSched" data-x="' + x.id + '">' + (armed ? 'Confirm' : 'Remove') + '</button>' : '') + '</li>';
@@ -1305,7 +1336,7 @@
     if (cs.total) hc = ' <span class="tag-coach' + (cs.out ? ' out' : cs.next ? ' warn' : '') + '">' +
       (cs.out ? 'HC OUT' : 'HC ' + cs.direct + (cs.indirect ? '+' + cs.indirect : '') + 'T') + '</span>';
     h.push('<div class="tm ' + tm + '"><span class="tm-score">' + c.score[tm] + '</span><div class="tm-info">');
-    h.push('<span class="tm-name">' + esc(name) + hc + '</span>');
+    h.push('<span class="tm-name">' + (tm === 'us' ? '<img class="ob tm-ob" src="' + LOGO + '" alt="">' : oppBadge(name, 'tm-ob')) + esc(name) + hc + '</span>');
     // Shown on the team that shoots: BONUS once the other side reaches the bonus foul,
     // "1 TO BONUS" when their next foul gets there.
     var bonus = c.inDoubleBonus[tm] ? '<span class="bonus">DOUBLE BONUS</span>' : c.inBonus[tm] ? '<span class="bonus">BONUS</span>' :
@@ -1603,6 +1634,7 @@
   screens.report = function () {
     var g = gameById(route.id);
     if (!g) return screens.home();
+    logoData(oppLogo(g.opponent));
     var names = ui.reportNames || meta.settings.names || 'first';
     var live = g.status !== 'final';
     var h = [pageHead(R.title(g, meta), backBtn(live ? '#game/' + g.id : '#home', live ? 'Game' : 'Home'), '')];
@@ -1629,7 +1661,7 @@
         : 'You can still reopen or delete this game until ' + ((lh % 12) || 12) + ':' + ('0' + lt.getMinutes()).slice(-2) + (lh < 12 ? ' AM' : ' PM') + '. After that it locks for good.') + '</p>');
     }
     if (g.publishedUrl) h.push('<p class="pub no-print">Published: <b>' + esc(g.publishedUrl) + '</b></p>');
-    h.push('<style>' + R.CSS + '</style><div class="rpt-wrap">' + R.render(g, meta, { names: names, logo: LOGO }) + '</div>');
+    h.push('<style>' + R.CSS + '</style><div class="rpt-wrap">' + R.render(g, meta, { names: names, logo: LOGO, oppLogo: oppLogo(g.opponent) }) + '</div>');
     return h.join('');
   };
 
@@ -2023,10 +2055,6 @@
   // Plays over the report when a game ends (End game): light rays, the
   // tiger and the opponent's initials, both scores counting up, a WIN / LOSS / TIE stamp, confetti for a
   // win, the period-by-period results and the top performer. Tap to skip ahead; See the report closes it.
-  function oppInitials(name) {
-    var words = String(name || 'Opponent').replace(/[^A-Za-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean);
-    return (words.length > 1 ? words.map(function (w) { return w.charAt(0); }).join('').slice(0, 3) : (words[0] || 'OPP').slice(0, 3)).toUpperCase();
-  }
   function showFinale(g) {
     var old = document.getElementById('finale');
     if (old) old.parentNode.removeChild(old);
@@ -2075,7 +2103,7 @@
       '<div class="fin-score"><div class="fin-team us"><div class="fin-badge us"><img src="icons/tiger-head-white.png" alt=""></div><b>' + esc(meta.team.name) + '</b></div>' +
       '<div class="fin-nums"><span class="n us' + (us > them ? ' top' : '') + '" data-to="' + us + '">' + (reduce ? us : 0) + '</span><span class="dash">–</span>' +
       '<span class="n them' + (them > us ? ' top' : '') + '" data-to="' + them + '">' + (reduce ? them : 0) + '</span></div>' +
-      '<div class="fin-team them"><div class="fin-badge them"><span>' + esc(oppInitials(g.opponent)) + '</span></div><b>' + esc(g.opponent || 'Opponent') + '</b></div></div>' +
+      '<div class="fin-team them"><div class="fin-badge them' + (oppLogo(g.opponent) ? ' logo"><img src="' + oppLogo(g.opponent) + '" alt="">' : '"><span>' + esc(oppInitials(g.opponent)) + '</span>') + '</div><b>' + esc(g.opponent || 'Opponent') + '</b></div></div>' +
       '<div class="fin-stamp"><span>' + stamp + '</span></div>' + won +
       '<div class="fin-qs">' + boxes + '</div>' +
       (starText ? '<div class="fin-star"><small>Top performer</small>' + starText + '</div>' : '') +
@@ -2616,7 +2644,7 @@
 
   actions.dlReport = function () {
     var g = gameById(route.id), names = ui.reportNames || meta.settings.names;
-    download(reportFileName(g), R.standalone(g, meta, { names: names, logo: logoData }), 'text/html');
+    download(reportFileName(g), R.standalone(g, meta, { names: names, logo: tigerData, oppLogo: logoData(oppLogo(g.opponent)) }), 'text/html');
     toast('Report file saved to Downloads.');
   };
 
@@ -2624,7 +2652,7 @@
   // works without Wi-Fi for Bluetooth. The email-style summary goes along as the message text.
   actions.shareReport = function () {
     var g = gameById(route.id), names = ui.reportNames || meta.settings.names;
-    var file = new File([R.standalone(g, meta, { names: names, logo: logoData })], reportFileName(g), { type: 'text/html' });
+    var file = new File([R.standalone(g, meta, { names: names, logo: tigerData, oppLogo: logoData(oppLogo(g.opponent)) })], reportFileName(g), { type: 'text/html' });
     if (!canShareFiles([file])) { toast('This browser can’t share files. Use Save file instead.'); return; }
     navigator.share({ files: [file], title: R.title(g, meta), text: R.plainText(g, meta, { names: names, url: g.publishedUrl }) })['catch'](function (err) {
       if (err && err.name !== 'AbortError') toast('Couldn’t share the file (' + err.name + '). Use Save file instead.');
@@ -2659,7 +2687,7 @@
     };
     xhr.onerror = xhr.ontimeout = function () { toast('Publish failed: no response from the server.'); };
     toast('Publishing…');
-    xhr.send(R.standalone(g, meta, { names: names, logo: logoData }));
+    xhr.send(R.standalone(g, meta, { names: names, logo: tigerData, oppLogo: logoData(oppLogo(g.opponent)) }));
   };
 
   actions.deleteGame = function () {

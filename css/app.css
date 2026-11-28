@@ -979,3 +979,17 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
 /* Scouting link on New game */
 .sc-link { margin-bottom: 0.7rem; }
 .sx-ldrs.watch { grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)); }
+
+/* Opponent badges: the school's logo (icons/opp/) or their initials */
+.ob { display: inline-block; flex: none; width: 2.3rem; height: 2.3rem; border-radius: 50%; background: #fff; object-fit: cover; vertical-align: middle;
+  box-shadow: 0 0 0 1px var(--rule); }
+.ob-init { display: inline-flex; align-items: center; justify-content: center; background: #5C6B71; color: #fff; box-shadow: none;
+  font-family: var(--f-num); font-weight: 700; font-size: 0.72rem; letter-spacing: 0.03em; }
+.ob.sch { width: 2.6rem; height: 2.6rem; margin-right: 0.15rem; }
+.ob.gl { width: 2.3rem; height: 2.3rem; }
+.tm-name .ob.tm-ob { width: 1.35rem; height: 1.35rem; margin: -0.15rem 0.35rem 0 0; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.6); }
+.tm-name .ob-init.tm-ob { font-size: 0.5rem; }
+.fin-badge.them.logo { background: #fff; overflow: hidden; box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.85), 0 0 30px rgba(255, 255, 255, 0.25); }
+.fin-badge.them.logo img { width: 100%; height: 100%; display: block; border-radius: 50%; }
+.sx-meta .sx-ologo { width: 2.8rem; height: 2.8rem; border-radius: 50%; vertical-align: middle; margin-right: 0.6rem; box-shadow: 0 0 0 1px var(--rule); }
+.sx-t .sx-ob { width: 1.35rem; height: 1.35rem; border-radius: 50%; vertical-align: -0.35rem; margin-right: 0.45rem; box-shadow: 0 0 0 1px var(--rule); }

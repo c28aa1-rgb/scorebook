@@ -64,6 +64,7 @@
     '.rpt{-webkit-print-color-adjust:exact;print-color-adjust:exact}',
     '.rpt .rpt-logo{flex:none;width:3.6rem;height:3.6rem;align-self:center;margin-right:0.2rem}',
     '.rpt .rpt-title{flex:1;min-width:0}',
+    '.rpt .rpt-ologo{flex:none;width:3.2rem;height:3.2rem;border-radius:50%;align-self:center;box-shadow:0 0 0 1px var(--rule)}',
     '.rpt .kp{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.4rem,1fr));margin-top:0.9rem;border-top:1px solid var(--rule);border-left:1px solid var(--rule)}',
     '.rpt .kp div{padding:0.45rem 0.6rem;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule)}',
     '.rpt .kp b{display:block;font-family:"Roboto Condensed","sans-serif-condensed",Bahnschrift,"Arial Narrow",sans-serif;font-size:1.45rem;line-height:1.05}',
@@ -534,7 +535,7 @@
     h.push('<h1><span class="' + (us > them ? 'win' : '') + '">' + esc(meta.team.name) + ' ' + us +
       '</span><span class="vs">–</span><span class="' + (them > us ? 'win' : '') + '">' + them + ' ' +
       esc(oppName(game)) + '</span></h1></div>');
-    h.push('<div class="rpt-meta"><b>' + esc(fmtDate(game.date)) + '</b>' + esc(game.location || '') + '</div></header>');
+    h.push((opts.oppLogo ? '<img class="rpt-ologo" src="' + esc(opts.oppLogo) + '" alt="">' : '') + '<div class="rpt-meta"><b>' + esc(fmtDate(game.date)) + '</b>' + esc(game.location || '') + '</div></header>');
     h.push(glance(game, meta, c));
     h.push('<h2>Score by period</h2>' + lineScore(game, meta, c));
     if (c.rules.scoreResets) h.push('<p class="pw">' + esc(periodsWonText(game, meta, c)) + '</p>');

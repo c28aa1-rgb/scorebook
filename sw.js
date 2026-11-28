@@ -1,11 +1,13 @@
 // Offline cache for the app shell. Bump VERSION whenever any cached file changes.
-var VERSION = 'scorebook-v45';
+var VERSION = 'scorebook-v46';
 var FILES = [
   './', './index.html', './css/app.css', './js/core.js', './js/db.js', './js/report.js', './js/stats.js', './js/sample.js', './js/schedule.js',
   './js/firebase-config.js', './js/cloud.js', './js/app.js',
   './vendor/firebase/firebase-app-compat.js', './vendor/firebase/firebase-auth-compat.js', './vendor/firebase/firebase-firestore-compat.js',
   './manifest.webmanifest', './icons/tiger.png', './icons/tiger-head-white.png', './icons/favicon-64.png', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png',
-  './icons/apple-touch-icon.png'
+  './icons/apple-touch-icon.png',
+  // Opponent logos
+  './icons/opp/berkeleycarroll.png', './icons/opp/collegiate.png', './icons/opp/dwight.png', './icons/opp/fieldston.png', './icons/opp/friendsseminary.png', './icons/opp/gracechurch.png', './icons/opp/hackley.png', './icons/opp/horacemann.png', './icons/opp/hunter.png', './icons/opp/polyprep.png', './icons/opp/riverdale.png', './icons/opp/ryecountryday.png', './icons/opp/trevorday.png', './icons/opp/trinity.png'
 ];
 
 // cache: 'reload' skips the browser's HTTP cache (GitHub Pages lets it keep files for 10 minutes),
