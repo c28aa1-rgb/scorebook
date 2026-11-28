@@ -1033,8 +1033,9 @@
     var armed = ui.armed === 'sch' + x.id;
     return '<li class="sch-row"><span class="sch-when"><b>' + esc(R.fmtDate(x.date).replace(/, \d{4}$/, '')) + '</b><small>' + esc(weekday(x.date)) +
       (x.time ? ' · ' + esc(x.time) : '') + '</small></span>' + oppBadge(x.opponent, 'sch') + '<span class="op">' + (x.homeAway === 'away' ? '@ ' : 'vs ') + esc(x.opponent) +
-      (x.type === 'scrimmage' ? ' <span class="tag-scrim">Scrimmage</span>' : '') + (x.location ? '<small>' + esc(x.location) + '</small>' : '') + '</span>' + right +
-      (hasPlayed(x.opponent) ? scoutLink(x.opponent) : '') +
+      (x.type === 'scrimmage' ? ' <span class="tag-scrim">Scrimmage</span>' : '') + (x.location ? '<small>' + esc(x.location) + '</small>' : '') + '</span>' +
+      // Scout (upcoming games against a team already played) sits left of Start game, so those line up.
+      (!(g && g.status === 'final') && hasPlayed(x.opponent) ? scoutLink(x.opponent) : '') + right +
       (full ? '<button class="btn sm danger' + (armed ? ' armed' : '') + '" data-a="rmSched" data-x="' + x.id + '">' + (armed ? 'Confirm' : 'Remove') + '</button>' : '') + '</li>';
   }
 
@@ -1638,6 +1639,10 @@
     var names = ui.reportNames || meta.settings.names || 'first';
     var live = g.status !== 'final';
     var h = [pageHead(R.title(g, meta), backBtn(live ? '#game/' + g.id : '#home', live ? 'Game' : 'Home'), '')];
+    if (ui.reportFor !== g.id) { ui.reportFor = g.id; ui.reportSide = 'us'; }   // a different game opens on our page
+    var side = ui.reportSide === 'them' ? 'them' : 'us';
+    h.push('<div class="rpt-tabs no-print"><div class="seg"><button data-a="reportSide" data-x="us" class="' + (side === 'us' ? 'on' : '') + '">' + esc(meta.team.name) + '</button>' +
+      '<button data-a="reportSide" data-x="them" class="' + (side === 'them' ? 'on' : '') + '">' + oppBadge(g.opponent, 'tab') + esc(g.opponent || 'Opponent') + '</button></div></div>');
     h.push('<div class="rpt-bar no-print">');
     h.push('<div class="seg" style="height:2.6rem;flex:0 0 18rem"><button data-a="repNames" data-x="jersey" class="' + (names === 'jersey' ? 'on' : '') + '">Jersey only</button>' +
       '<button data-a="repNames" data-x="first" class="' + (names === 'first' ? 'on' : '') + '">First name</button>' +
@@ -1649,7 +1654,7 @@
       (ui.armed === 'del' + g.id ? 'Confirm delete' : 'Delete game') + '</button>');
     if (live) h.push('<button class="btn sm pri" data-a="go" data-x="#game/' + g.id + '">Back to game</button>');
     else if (!locked) h.push('<button class="btn sm ghost" data-a="reopen">Reopen game</button>');
-    h.push('<button class="btn sm" data-a="print">Print</button>');
+    h.push('<button class="btn sm" data-a="printReportPick">Print</button>');
     h.push('<button class="btn sm" data-a="dlReport">Save file</button>');
     if (SHARE_FILES) h.push('<button class="btn sm" data-a="shareReport">Share file</button>');
     h.push('<button class="btn sm" data-a="publish">' + (g.publishedUrl ? 'Update link' : 'Publish link') + '</button>');
@@ -1661,7 +1666,12 @@
         : 'You can still reopen or delete this game until ' + ((lh % 12) || 12) + ':' + ('0' + lt.getMinutes()).slice(-2) + (lh < 12 ? ' AM' : ' PM') + '. After that it locks for good.') + '</p>');
     }
     if (g.publishedUrl) h.push('<p class="pub no-print">Published: <b>' + esc(g.publishedUrl) + '</b></p>');
-    h.push('<style>' + R.CSS + '</style><div class="rpt-wrap">' + R.render(g, meta, { names: names, logo: LOGO, oppLogo: oppLogo(g.opponent) }) + '</div>');
+    if (ui.drawer === 'printReport') {
+      h.push(sheet('Print this game', '<div class="stack"><button class="btn pri" data-a="printReport" data-x="both">Both pages<small>' + esc(meta.team.name) + ' and ' + esc(g.opponent || 'Opponent') + ', one sheet each</small></button>' +
+        '<button class="btn" data-a="printReport" data-x="us">' + esc(meta.team.name) + ' page</button>' +
+        '<button class="btn" data-a="printReport" data-x="them">' + esc(g.opponent || 'Opponent') + ' page</button></div>', '<button class="btn ghost" data-a="closeDrawer">Cancel</button>', true));
+    }
+    h.push('<style>' + R.CSS + '</style><div class="rpt-wrap">' + R.render(g, meta, { names: names, logo: LOGO, oppLogo: oppLogo(g.opponent), side: side }) + '</div>');
     return h.join('');
   };
 
@@ -2275,6 +2285,22 @@
   };
   actions.boxTab = function (x) { ui.boxTab = x; render(); };
   actions.goBack = function () { if (window.history.length > 1) window.history.back(); else go('#home'); };
+  actions.reportSide = function (x) { ui.reportSide = x; render(); window.scrollTo(0, 0); };
+  // Print a game: the Dalton page, the opponent's page, or both (each on its own sheet).
+  actions.printReportPick = function () { ui.drawer = 'printReport'; render(); };
+  actions.printReport = function (x) {
+    var g = gameById(route.id);
+    if (!g) return;
+    var names = ui.reportNames || meta.settings.names || 'first', o = { names: names, logo: LOGO, oppLogo: oppLogo(g.opponent) };
+    var sides = x === 'both' ? ['us', 'them'] : [x], html = sides.map(function (sd) { o.side = sd; return R.render(g, meta, o); }).join('');
+    var root = document.getElementById('print-root');
+    if (!root) { root = document.createElement('div'); root.id = 'print-root'; document.body.appendChild(root); }
+    root.innerHTML = html;
+    document.documentElement.classList.add('print-stats');
+    ui.drawer = null;
+    render();
+    setTimeout(function () { window.print(); }, 60);
+  };
   actions.closeDrawer = function () { ui.drawer = null; ui.armed = null; ui.kpFor = null; ui.pendSub = null; ui.subOut = null; ui.techBench = false; ui.lineup = null; render(); };
 
   // Technicals off the court (team name, then TECH): head coach, assistant, a bench player or the team.

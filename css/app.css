@@ -993,3 +993,23 @@ html.in-game, html.in-game body { overscroll-behavior-y: none; }
 .fin-badge.them.logo img { width: 100%; height: 100%; display: block; border-radius: 50%; }
 .sx-meta .sx-ologo { width: 2.8rem; height: 2.8rem; border-radius: 50%; vertical-align: middle; margin-right: 0.6rem; box-shadow: 0 0 0 1px var(--rule); }
 .sx-t .sx-ob { width: 1.35rem; height: 1.35rem; border-radius: 50%; vertical-align: -0.35rem; margin-right: 0.45rem; box-shadow: 0 0 0 1px var(--rule); }
+
+/* Printing: a fixed base size (the screen's scaled base would carry over and make pages wider than the paper,
+   so the browser shrinks them), no minimum column widths, and tighter tables, so every sheet fits the page width
+   even when the browser prints landscape sheets portrait (iPad Safari ignores the landscape request). */
+@media print {
+  html { font-size: 12px !important; }
+  .sx-players td:nth-child(n+2), .sx-players th:nth-child(n+2) { min-width: 0; }
+  .sx-t { font-size: 8pt; }
+  .sx-t th { font-size: 6.5pt; letter-spacing: 0.02em; white-space: normal; }
+  .sx-t td, .sx-t th { padding: 0.18rem 0.28rem; }
+  .sx-t td.nm { font-size: 8pt; }
+  .sx-jr { min-width: 1.5rem; }
+}
+
+/* Game report: Dalton | Opponent pages */
+.rpt-tabs { max-width: 60rem; margin: 0.9rem auto 0; padding: 0 1.25rem; }
+.rpt-tabs .seg { height: 3rem; max-width: 34rem; }
+.rpt-tabs .seg button { display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem; }
+.rpt-tabs .ob.tab { width: 1.7rem; height: 1.7rem; }
+.rpt-tabs .ob-init.tab { font-size: 0.55rem; }
