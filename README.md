@@ -78,7 +78,8 @@ left out).
 **Search** (the magnifier at the top of Stats and player pages; it opens into a search field, and × or
 Escape closes it): as you type, a list of matching players, stats
 and games appears. Tap one, or press Enter for the first. A player or game opens it, and a stat opens the
-players view sorted by it (e.g. "free throw" → Shooting, sorted by FT%) or scrolls to it on its sheet
+players view sorted by it with that column highlighted (e.g. "free throw" → Shooting, FT%), or opens its sheet
+right at that line, highlighted for a couple of seconds
 (e.g. "close games" on Team). Searching for a player or opponent also narrows the lists on the current tab
 to matching rows; **Show all** (or Escape) clears it.
 
@@ -125,7 +126,9 @@ schedule are skipped. You can also add games one at a time.
 The next three games show under **Up next** on the home screen; **Start game** opens New game with the
 opponent, date, place and home/away filled in, and the schedule then shows Resume or the final score.
 
-On New game you can also type the opponent's jersey numbers so their column is ready at tip-off.
+On New game you can also enter the opponent's jersey numbers so their column is ready at tip-off: tap the
+number on the pad and **Add** (a keyboard works too: digits, Backspace, Enter). Each number shows as a chip
+(tap to remove), with a count next to your roster size.
 When it's a team you've already played this season, their numbers from those games (games and
 scrimmages) are filled in as soon as you type or pick the name; remove anyone who isn't playing. Numbers
 you type yourself are never replaced.

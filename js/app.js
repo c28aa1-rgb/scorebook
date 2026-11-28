@@ -481,7 +481,8 @@
     fitScale();
     render();
     syncWake();
-    window.scrollTo(0, 0);
+    // Opened from search: land on the stat (no scrolling from the top), highlighted for a moment.
+    if (!applyStatFocus()) window.scrollTo(0, 0);
   }
 
   function render() {
@@ -816,13 +817,35 @@
     var all = document.querySelectorAll('.sx-wrap h2, .sx-wrap dt, .sx-wrap h3, .sx-wrap .sx-kpis span');
     for (var i = 0; i < all.length; i++) {
       if (all[i].textContent.toLowerCase().indexOf(text.toLowerCase()) === 0) {
-        var el = all[i].closest ? (all[i].closest('.sx-dl > div') || all[i].closest('.sx-kpis > div') || all[i]) : all[i];
+        var el = all[i].closest ? (all[i].closest('.sx-dl > div') || all[i].closest('.sx-kpis > div') || all[i].closest('.sx-ldr') || all[i]) : all[i];
         el.scrollIntoView({ block: 'center' });
         el.classList.add('sq-flash');
-        setTimeout(function () { el.classList.remove('sq-flash'); }, 1800);
-        return;
+        setTimeout(function () { el.classList.remove('sq-flash'); }, 2800);
+        return true;
       }
     }
+    return false;
+  }
+  // A column of the players table: scrolled into view (sideways too) and highlighted top to bottom.
+  function focusStatCol(k) {
+    var btn = document.querySelector('.sx-players th button[data-x="' + k + '"]');
+    if (!btn) return false;
+    var th = btn.parentNode, idx = th.cellIndex, table = th.closest ? th.closest('table') : null, box = table && table.closest ? table.closest('.sx') : null;
+    if (!table) return false;
+    var cells = [th];
+    for (var r = 0; r < table.rows.length; r++) if (table.rows[r].cells[idx]) cells.push(table.rows[r].cells[idx]);
+    cells.forEach(function (c) { c.classList.add('sq-col'); });
+    th.scrollIntoView({ block: 'center' });
+    if (box && box.scrollWidth > box.clientWidth) box.scrollLeft = Math.max(0, th.offsetLeft - box.clientWidth / 2);
+    setTimeout(function () { cells.forEach(function (c) { c.classList.add('sq-col-out'); }); }, 2200);
+    setTimeout(function () { cells.forEach(function (c) { c.classList.remove('sq-col', 'sq-col-out'); }); }, 3000);
+    return true;
+  }
+  function applyStatFocus() {
+    var fo = ui.statFocus;
+    if (!fo) return false;
+    ui.statFocus = null;
+    return fo.col ? focusStatCol(fo.col) : focusStatLabel(fo.label);
   }
 
   screens.stats = function () {
@@ -1052,6 +1075,30 @@
     return draft.oppNote = past ? 'Filled in from ' + (past.games === 1 ? 'the earlier game' : past.games + ' earlier games') + ' vs ' + past.name +
       ' this season. Remove anyone who isn’t playing; new numbers can be added during the game.' : '';
   }
+  // Their numbers on New game: a number pad (no keyboard needed), the numbers so far as chips (tap one
+  // to remove it), and a count next to our roster size. Stored as text in draft.oppNumsText.
+  function oppPadHtml(note) {
+    var nums = parseNums(draft.oppNumsText).sort(function (a, b) { return R.byJersey({ num: a }, { num: b }); }), kp = ui.oppKp || '', mine = seasonPlayers().length;
+    var keys = '';
+    for (var d = 1; d <= 9; d++) keys += '<button data-a="oppKey" data-x="' + d + '">' + d + '</button>';
+    keys += '<button class="fn" data-a="oppKey" data-x="back" aria-label="Delete digit">⌫</button><button data-a="oppKey" data-x="0">0</button>' +
+      '<button class="add" data-a="oppKey" data-x="add"' + (kp ? '' : ' disabled') + '>Add</button>';
+    return '<div class="opp-pad"><div class="opp-disp' + (kp ? '' : ' empty') + '">#<b>' + (esc(kp) || '–') + '</b></div><div class="opp-keys">' + keys + '</div></div>' +
+      '<div class="opp-list"><div class="opp-count"><b>' + nums.length + '</b><span>number' + (nums.length === 1 ? '' : 's') + ' entered</span>' +
+      '<em>' + esc(meta.team.name) + ' roster: ' + mine + '</em></div>' +
+      (nums.length ? '<div class="opp-chips">' + nums.map(function (n) {
+        return '<button class="opp-chip' + (ui.oppFlash === n ? ' flash' : '') + '" data-a="oppRemove" data-x="' + esc(n) + '" aria-label="Remove number ' + esc(n) + '">#' + esc(n) + '<i>×</i></button>';
+      }).join('') + '</div><button class="btn sm ghost" data-a="oppClear">Clear all</button>'
+        : '<p class="note">Tap their number on the pad, then <b>Add</b> (or type it and press Enter on a keyboard). Tap a number here to remove it.</p>') +
+      '<p class="note" id="ng-nums-note">' + esc(note || 'Entering their numbers now sets up their column before tip-off. You can still add numbers during the game.') + '</p></div>';
+  }
+  // Redraws just the pad and chips (keeps the page and anything being typed where they are).
+  function refreshOppPad(note) {
+    var el = document.getElementById('opp-entry');
+    if (el) el.innerHTML = oppPadHtml(note === undefined ? autofillOpp() : note);
+  }
+  function oppNumsEdited() { draft.oppEdited = { key: oppKey(draft.opponent), fromAuto: !!draft.oppAuto }; }
+
   screens['new'] = function () {
     var ps = seasonPlayers();
     if (!draft) draft = { opponent: '', date: today(), location: '', homeAway: 'home', starters: [] };
@@ -1074,9 +1121,8 @@
     h.push('<div class="fld xs" style="flex-basis:12rem"><span class="lab">Side</span><div class="seg">' +
       '<button data-a="draftSide" data-x="home" class="' + (draft.homeAway === 'home' ? 'on' : '') + '">Home</button>' +
       '<button data-a="draftSide" data-x="away" class="' + (draft.homeAway === 'away' ? 'on' : '') + '">Away</button></div></div>');
-    h.push('<div class="fld" style="flex-basis:100%"><label for="ng-nums">Their jersey numbers (optional)</label><input id="ng-nums" data-draft="oppNumsText" value="' +
-      esc(draft.oppNumsText || '') + '" placeholder="e.g. 1 3 7 13 20 32" autocomplete="off"></div>');
-    h.push('</div><p class="note" id="ng-nums-note">' + (oppNote || 'Entering their numbers now sets up their column before tip-off. You can still add numbers during the game.') + '</p>');
+    h.push('</div>');
+    h.push('<h2>Their jersey numbers <small>optional</small></h2><div class="opp-entry" id="opp-entry">' + oppPadHtml(oppNote) + '</div>');
     h.push('<h2>Starters · ' + draft.starters.length + ' of 5</h2><div class="pick">');
     ps.forEach(function (p) {
       var on = draft.starters.indexOf(p.id) >= 0;
@@ -2119,6 +2165,35 @@
     return out;
   }
 
+  actions.oppKey = function (x) {
+    var kp = ui.oppKp || '';
+    if (x === 'back') ui.oppKp = kp.slice(0, -1);
+    else if (x === 'add') {
+      if (!kp) return;
+      var nums = parseNums(draft.oppNumsText);
+      if (nums.indexOf(kp) >= 0) { ui.oppFlash = kp; toast('#' + kp + ' is already in.'); }
+      else { nums.push(kp); draft.oppNumsText = nums.join(' '); oppNumsEdited(); ui.oppFlash = kp; }
+      ui.oppKp = '';
+    } else if (kp.length < 2) ui.oppKp = kp + x;
+    refreshOppPad();
+    ui.oppFlash = null;
+  };
+  actions.oppRemove = function (x) {
+    draft.oppNumsText = parseNums(draft.oppNumsText).filter(function (n) { return n !== x; }).join(' ');
+    oppNumsEdited();
+    refreshOppPad();
+  };
+  actions.oppClear = function () { draft.oppNumsText = ''; oppNumsEdited(); ui.oppKp = ''; refreshOppPad(); };
+  // A keyboard works too on New game: digits, Backspace, Enter (when not typing in a field).
+  document.addEventListener('keydown', function (ev) {
+    if (route.name !== 'new' || !document.getElementById('opp-entry')) return;
+    var a = document.activeElement;
+    if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return;
+    if (/^[0-9]$/.test(ev.key)) { ev.preventDefault(); actions.oppKey(ev.key); }
+    else if (ev.key === 'Backspace') { ev.preventDefault(); actions.oppKey('back'); }
+    else if (ev.key === 'Enter') { ev.preventDefault(); actions.oppKey('add'); }
+  });
+
   actions.startGame = function () {
     var name = (draft.opponent || '').trim();
     if (!name) { toast('Enter the opponent’s name.'); var el = document.getElementById('ng-opp'); if (el) el.focus(); return; }
@@ -2294,9 +2369,9 @@
     ui.statQ = ''; ui.sqOpen = false;
     if (r.go) return go(r.go);
     var st = r.stat, views = window.SBStats.VIEWS;
-    if (views[st[2]]) { ui.statView = st[2]; ui.statSort = { k: st[3], dir: 'desc' }; go('#stats/players'); return; }
+    if (views[st[2]]) { ui.statView = st[2]; ui.statSort = { k: st[3], dir: 'desc' }; ui.statFocus = { col: st[3] }; go('#stats/players'); return; }
+    ui.statFocus = st[3] ? { label: st[3] } : null;
     go('#stats/' + st[2]);
-    if (st[3]) setTimeout(function () { focusStatLabel(st[3]); }, 60);
   };
   actions.sqOpen = function () {
     ui.sqOpen = true; ui.sqAnim = true;
@@ -2479,9 +2554,7 @@
     // Typing the opponent's name fills in the numbers from games against them (without a re-render,
     // which would drop the keyboard).
     if (k === 'opponent') {
-      var note = autofillOpp(), nf = document.getElementById('ng-nums'), nn = document.getElementById('ng-nums-note');
-      if (nf && nf.value !== draft.oppNumsText) nf.value = draft.oppNumsText;
-      if (nn) nn.textContent = note || 'Entering their numbers now sets up their column before tip-off. You can still add numbers during the game.';
+      refreshOppPad(autofillOpp());
     }
     if (ev.target.getAttribute('data-schedtext')) ui.schedText = ev.target.value;
     if (ev.target.getAttribute('data-statq')) { ui.statQ = ev.target.value; applyStatSearch(true); }
