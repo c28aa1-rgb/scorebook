@@ -1525,7 +1525,6 @@
       (ui.armed === 'del' + g.id ? 'Confirm delete' : 'Delete game') + '</button>');
     if (live) h.push('<button class="btn sm pri" data-a="go" data-x="#game/' + g.id + '">Back to game</button>');
     else if (!locked) h.push('<button class="btn sm ghost" data-a="reopen">Reopen game</button>');
-    if (!live) h.push('<button class="btn sm ghost" data-a="replayFinale">Replay final</button>');
     h.push('<button class="btn sm" data-a="print">Print</button>');
     h.push('<button class="btn sm" data-a="dlReport">Save file</button>');
     if (SHARE_FILES) h.push('<button class="btn sm" data-a="shareReport">Share file</button>');
@@ -1927,7 +1926,7 @@
 
 
   // ---------- Finish-game animation ----------
-  // Plays over the report when a game ends (and from "Replay final" on the report): light rays, the
+  // Plays over the report when a game ends (End game): light rays, the
   // tiger and the opponent's initials, both scores counting up, a WIN / LOSS / TIE stamp, confetti for a
   // win, the period-by-period results and the top performer. Tap to skip ahead; See the report closes it.
   function oppInitials(name) {
@@ -2014,7 +2013,6 @@
     function onKey(ev) { if (ev.key === 'Escape' || ev.key === 'Enter') close(); }
     document.addEventListener('keydown', onKey);
   }
-  actions.replayFinale = function () { var g = gameById(route.id); if (g) showFinale(g); };
 
   actions.endGame = function () {
     var g = gameById(route.id);
